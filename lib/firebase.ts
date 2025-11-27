@@ -1,26 +1,63 @@
-import { initializeApp, getApps } from 'firebase/app';
+import { getAnalytics } from 'firebase/analytics';
+import { getApps, initializeApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getAnalytics } from 'firebase/analytics';
 
-// Your web app's Firebase configuration
-// Get these values from Firebase Console → Project Settings → Your apps → Web app
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-// TODO: Update these values with your new Firebase project configuration
-const firebaseConfig = {
-	apiKey: "AIzaSyC-3_3wcTHRkkU_LDIT0dlOXudMaLkLNe8", // Replace with your new API key
-	authDomain: "centerforsportsandscience.firebaseapp.com", // Replace with your new auth domain
-	projectId: "centerforsportsandscience", // Replace with your new project ID
-	storageBucket: "centerforsportsandscience.firebasestorage.app", // Replace with your new storage bucket
-	messagingSenderId: "600654016382", // Replace with your new messaging sender ID
-	appId: "1:600654016382:web:cf9b3f9a119094856bcd2f", // Replace with your new app ID
-	measurementId: "G-5Q8GF58QCG" // Replace with your new measurement ID (optional)
+type FirebaseConfigKey =
+	| 'API_KEY'
+	| 'AUTH_DOMAIN'
+	| 'PROJECT_ID'
+	| 'STORAGE_BUCKET'
+	| 'MESSAGING_SENDER_ID'
+	| 'APP_ID'
+	| 'MEASUREMENT_ID'
+	| 'DATABASE_ID';
+
+const FALLBACK_CLIENT_CONFIG: FirebaseOptions = {
+	apiKey: "AIzaSyA-oitYFLHjKWgTgkdz8E5WnGi5byZaYfM",
+	authDomain: "sixs-physio.firebaseapp.com",
+	projectId: "sixs-physio",
+	storageBucket: "sixs-physio.firebasestorage.app",
+	messagingSenderId: "1086337017366",
+	appId: "1:1086337017366:web:a147b7adef3b351a677737",
+	measurementId: "G-VCZG2DGQJG"
 };
 
-// Database ID for Firestore
-// Using the default database - if you need a named database, set this to your database ID
-// For most projects, you can use the default database by omitting the parameter or using '(default)'
-const DATABASE_ID = '(default)'; // Using default database
+const isStaging = process.env.NEXT_PUBLIC_ENVIRONMENT === 'staging';
+
+const getEnvValue = (key: FirebaseConfigKey): string | undefined => {
+	const stagingKey = `NEXT_PUBLIC_FIREBASE_STAGING_${key}` as keyof NodeJS.ProcessEnv;
+	const prodKey = `NEXT_PUBLIC_FIREBASE_${key}` as keyof NodeJS.ProcessEnv;
+	const stagingValue = process.env[stagingKey];
+	const prodValue = process.env[prodKey];
+
+	return isStaging ? stagingValue ?? prodValue : prodValue ?? stagingValue;
+};
+
+const fallbackKeys: FirebaseConfigKey[] = [];
+const withFallback = <K extends FirebaseConfigKey>(key: K, fallback: string | undefined) => {
+	const value = getEnvValue(key);
+	if (!value && fallback) {
+		fallbackKeys.push(key);
+	}
+	return value ?? fallback;
+};
+
+const firebaseConfig: FirebaseOptions = {
+	apiKey: withFallback('API_KEY', FALLBACK_CLIENT_CONFIG.apiKey),
+	authDomain: withFallback('AUTH_DOMAIN', FALLBACK_CLIENT_CONFIG.authDomain),
+	projectId: withFallback('PROJECT_ID', FALLBACK_CLIENT_CONFIG.projectId),
+	storageBucket: withFallback('STORAGE_BUCKET', FALLBACK_CLIENT_CONFIG.storageBucket),
+	messagingSenderId: withFallback('MESSAGING_SENDER_ID', FALLBACK_CLIENT_CONFIG.messagingSenderId),
+	appId: withFallback('APP_ID', FALLBACK_CLIENT_CONFIG.appId),
+	measurementId: withFallback('MEASUREMENT_ID', FALLBACK_CLIENT_CONFIG.measurementId),
+};
+
+const rawDatabaseId = getEnvValue('DATABASE_ID');
+const DATABASE_ID =
+	rawDatabaseId && rawDatabaseId !== '(default)' && rawDatabaseId.toLowerCase() !== 'default'
+		? rawDatabaseId
+		: undefined;
 
 // Initialize Firebase
 let app;
@@ -34,10 +71,18 @@ try {
 	
 	// Log configuration in development
 	if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+		if (fallbackKeys.length > 0) {
+			console.warn(
+				'⚠️ Firebase config is using hardcoded fallback values for:',
+				fallbackKeys.join(', '),
+				'\nEnsure the corresponding NEXT_PUBLIC_FIREBASE_* environment variables are set and restart the dev server.'
+			);
+		}
 		console.log('✅ Firebase initialized:', {
+			environment: isStaging ? 'staging' : 'production',
 			projectId: firebaseConfig.projectId,
 			authDomain: firebaseConfig.authDomain,
-			databaseId: DATABASE_ID
+			databaseId: DATABASE_ID ?? '(default)',
 		});
 	}
 } catch (error) {
@@ -84,11 +129,9 @@ try {
 // Initialize Firestore with default database
 let db;
 try {
-	// Use default database - if you have a named database, uncomment and set DATABASE_ID
-	db = getFirestore(app); // Using default database
-	// db = getFirestore(app, DATABASE_ID); // Use this if you have a named database
+	db = DATABASE_ID ? getFirestore(app, DATABASE_ID) : getFirestore(app);
 	if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-		console.log('✅ Firebase Firestore initialized with default database');
+		console.log('✅ Firebase Firestore initialized with database:', DATABASE_ID ?? '(default)');
 	}
 } catch (error) {
 	console.error('❌ Firebase Firestore initialization error:', error);

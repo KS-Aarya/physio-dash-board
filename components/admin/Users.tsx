@@ -226,7 +226,6 @@ export default function Users() {
 	};
 
 	const closeDialog = () => {
-		if (saving) return;
 		setIsDialogOpen(false);
 		setEditingEmployee(null);
 		setFormState(INITIAL_FORM);

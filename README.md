@@ -116,25 +116,48 @@ npm install
 
 3. Set up environment variables
 
-Create a `.env.local` file with your Firebase Admin SDK configuration:
+Create a `.env.local` file with your Firebase configuration (client + Admin SDK):
 
 ```env
-# Firebase Project ID (used by Admin SDK)
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=centerforsportsandscience
+# Production client config
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_FIREBASE_DATABASE_ID=(default) # optional named database
+
+# Optional staging client config (used when NEXT_PUBLIC_ENVIRONMENT=staging)
+NEXT_PUBLIC_FIREBASE_STAGING_API_KEY=your_staging_api_key
+NEXT_PUBLIC_FIREBASE_STAGING_AUTH_DOMAIN=your-staging.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_STAGING_PROJECT_ID=your-staging-project-id
+NEXT_PUBLIC_FIREBASE_STAGING_STORAGE_BUCKET=your-staging.appspot.com
+NEXT_PUBLIC_FIREBASE_STAGING_MESSAGING_SENDER_ID=your_staging_sender_id
+NEXT_PUBLIC_FIREBASE_STAGING_APP_ID=1:123456789:web:staging
+NEXT_PUBLIC_FIREBASE_STAGING_MEASUREMENT_ID=G-STAGING
+NEXT_PUBLIC_FIREBASE_STAGING_DATABASE_ID=(default)
 
 # Firebase Admin SDK Configuration
-# Option 1: Service account key as JSON string (recommended for deployment)
-# Get this from Firebase Console → Project Settings → Service Accounts → Generate new private key
-FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"centerforsportsandscience",...}'
+# Option 1: Service account key fragments (easy for local dev)
+FIREBASE_ADMIN_PROJECT_ID=your-project-id
+FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-xyz@your-project-id.iam.gserviceaccount.com
+FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+# Optional extras
+# FIREBASE_ADMIN_CLIENT_ID=123456789012345678901
+# FIREBASE_ADMIN_PRIVATE_KEY_ID=abcdef123456abcdef123456abcdef1234567890
+
+# Option 2: Service account key as JSON string (recommended for deployment)
+# FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"your-project-id",...}'
 
 # Option 2: Path to service account JSON file (recommended for local development)
 # GOOGLE_APPLICATION_CREDENTIALS=./firebase-service-account.json
-```
 
-**Note:** Client-side Firebase configuration is hardcoded in `lib/firebase.ts` with the following settings:
-- Project: `centerforsportsandscience`
-- Database: `css-2025`
-- All Firebase client config values are set in the code
+# Optional named database overrides for Admin SDK
+# FIREBASE_DATABASE_ID=sixs-physio
+# FIREBASE_STAGING_DATABASE_ID=sixs-physio
+```
 
 **Optional Services:**
 ```env

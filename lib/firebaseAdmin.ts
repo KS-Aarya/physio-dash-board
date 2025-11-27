@@ -1,4 +1,4 @@
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { readFileSync, existsSync } from 'fs';
@@ -14,6 +14,41 @@ let dbAdmin: Firestore;
 // Determine environment (staging or production)
 // Note: NODE_ENV can only be 'development', 'production', or 'test', so we only check NEXT_PUBLIC_ENVIRONMENT for staging
 const isStaging = process.env.NEXT_PUBLIC_ENVIRONMENT === 'staging';
+
+const getAdminEnv = (key: string) => {
+	const stagingKey = `FIREBASE_ADMIN_STAGING_${key}`;
+	const prodKey = `FIREBASE_ADMIN_${key}`;
+	const stagingValue = process.env[stagingKey as keyof NodeJS.ProcessEnv];
+	const prodValue = process.env[prodKey as keyof NodeJS.ProcessEnv];
+	return isStaging ? stagingValue ?? prodValue : prodValue ?? stagingValue;
+};
+
+const buildServiceAccountFromFragments = () => {
+	const projectId = getAdminEnv('PROJECT_ID');
+	const clientEmail = getAdminEnv('CLIENT_EMAIL');
+	const privateKey = getAdminEnv('PRIVATE_KEY');
+
+	if (!projectId || !clientEmail || !privateKey) {
+		return null;
+	}
+
+	const normalizedKey = privateKey.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+	const clientId = getAdminEnv('CLIENT_ID') || undefined;
+	const privateKeyId = getAdminEnv('PRIVATE_KEY_ID') || 'auto-generated-key';
+
+	return {
+		type: 'service_account',
+		project_id: projectId,
+		private_key_id: privateKeyId,
+		private_key: normalizedKey,
+		client_email: clientEmail,
+		client_id: clientId,
+		auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+		token_uri: 'https://oauth2.googleapis.com/token',
+		auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+		client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${encodeURIComponent(clientEmail)}`,
+	};
+};
 
 // Debug logging (server-side)
 if (process.env.NODE_ENV === 'development') {
@@ -40,8 +75,38 @@ const getProjectId = () => {
 	return prodId;
 };
 
+const resolveDatabaseId = () => {
+	const stagingId =
+		process.env.FIREBASE_STAGING_DATABASE_ID ||
+		process.env.NEXT_PUBLIC_FIREBASE_STAGING_DATABASE_ID;
+	const prodId =
+		process.env.FIREBASE_DATABASE_ID || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID;
+
+	const rawId = isStaging ? stagingId ?? prodId : prodId ?? stagingId;
+	if (!rawId || rawId === '(default)' || rawId.toLowerCase() === 'default') {
+		return undefined;
+	}
+	return rawId;
+};
+
+const resolvedDatabaseId = resolveDatabaseId();
+
 // Initialize Firebase Admin SDK
 if (getApps().length === 0) {
+	// Method 0: Build credentials from FIREBASE_ADMIN_* fragments
+	let serviceAccountKey = buildServiceAccountFromFragments();
+	if (serviceAccountKey) {
+		try {
+			console.log(`✅ Firebase Admin SDK: Built credentials from FIREBASE_ADMIN_${isStaging ? 'STAGING_' : ''}* variables`);
+			app = initializeApp({
+				credential: cert(serviceAccountKey),
+				projectId: getProjectId() || serviceAccountKey.project_id,
+			});
+		} catch (error) {
+			console.error('❌ Failed to initialize Firebase Admin using FIREBASE_ADMIN_* variables:', (error as Error).message);
+		}
+	}
+
 	// Method 1: Try using file path (GOOGLE_APPLICATION_CREDENTIALS or default location)
 	// For staging, try staging-specific file first
 	const stagingCredentialsPath = isStaging 
@@ -132,12 +197,8 @@ if (!app) {
 	app = getApps()[0] || initializeApp({ projectId: fallbackProjectId });
 }
 
-// Database ID - should match the one in lib/firebase.ts
-// TODO: Update 'css-2025' with your actual database ID
-const DATABASE_ID = 'css-2025'; // Change this to match your database ID in lib/firebase.ts
-
 authAdmin = getAuth(app as App);
-dbAdmin = getFirestore(app as App, DATABASE_ID);
+dbAdmin = resolvedDatabaseId ? getFirestore(app as App, resolvedDatabaseId) : getFirestore(app as App);
 
 // Log initialization status
 const hasCredentials = !!(
@@ -151,6 +212,7 @@ const hasCredentials = !!(
 if (hasCredentials) {
 	console.log(`✅ Firebase Admin SDK initialized successfully (${isStaging ? 'STAGING' : 'PRODUCTION'})`);
 	console.log('   Project ID:', app?.options?.projectId || getProjectId() || 'not set');
+	console.log('   Database ID:', resolvedDatabaseId ?? '(default)');
 } else {
 	console.warn('⚠️ Firebase Admin SDK initialized but credentials may be missing');
 	console.warn(`   Set FIREBASE_SERVICE_ACCOUNT_KEY${isStaging ? '_STAGING' : ''} or GOOGLE_APPLICATION_CREDENTIALS${isStaging ? '_STAGING' : ''} in .env.local`);

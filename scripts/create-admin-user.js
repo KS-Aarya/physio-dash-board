@@ -13,12 +13,78 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { readFileSync, existsSync } = require('fs');
 const { join } = require('path');
 
+const isStaging = process.env.NEXT_PUBLIC_ENVIRONMENT === 'staging';
+const DEFAULT_PROJECT_ID = 'centerforsportsandscience';
+const DEFAULT_DATABASE_ID = 'sixs-physio';
+
+const getAdminEnv = (key) => {
+	const stagingKey = `FIREBASE_ADMIN_STAGING_${key}`;
+	const prodKey = `FIREBASE_ADMIN_${key}`;
+	const stagingVal = process.env[stagingKey];
+	const prodVal = process.env[prodKey];
+	return isStaging ? stagingVal || prodVal : prodVal || stagingVal;
+};
+
+const resolveProjectId = (serviceAccountProjectId) => {
+	const stagingId =
+		process.env.NEXT_PUBLIC_FIREBASE_STAGING_PROJECT_ID ||
+		process.env.FIREBASE_STAGING_PROJECT_ID;
+	const prodId =
+		process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+
+	return (
+		(isStaging ? stagingId ?? prodId : prodId ?? stagingId) ||
+		serviceAccountProjectId ||
+		DEFAULT_PROJECT_ID
+	);
+};
+
+const resolveDatabaseId = () => {
+	const stagingId =
+		process.env.FIREBASE_STAGING_DATABASE_ID ||
+		process.env.NEXT_PUBLIC_FIREBASE_STAGING_DATABASE_ID;
+	const prodId =
+		process.env.FIREBASE_DATABASE_ID || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID;
+	const rawId = isStaging ? stagingId ?? prodId : prodId ?? stagingId;
+
+	const candidate = rawId || DEFAULT_DATABASE_ID;
+	if (!candidate || candidate === '(default)' || candidate.toLowerCase() === 'default') {
+		return undefined;
+	}
+	return candidate;
+};
+
 // Admin user credentials
 const ADMIN_USER = {
 	email: 'admincss@test.com',
 	password: 'admin123',
 	displayName: 'Admin User',
 	role: 'Admin'
+};
+
+const buildServiceAccountFromFragments = () => {
+	const projectId = getAdminEnv('PROJECT_ID');
+	const clientEmail = getAdminEnv('CLIENT_EMAIL');
+	const privateKey = getAdminEnv('PRIVATE_KEY');
+
+	if (!projectId || !clientEmail || !privateKey) {
+		return null;
+	}
+
+	const normalizedKey = privateKey.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+
+	return {
+		type: 'service_account',
+		project_id: projectId,
+		private_key: normalizedKey,
+		private_key_id: getAdminEnv('PRIVATE_KEY_ID') || 'auto-generated-key',
+		client_email: clientEmail,
+		client_id: getAdminEnv('CLIENT_ID'),
+		auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+		token_uri: 'https://oauth2.googleapis.com/token',
+		auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+		client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${encodeURIComponent(clientEmail)}`,
+	};
 };
 
 // Initialize Firebase Admin SDK
@@ -30,6 +96,13 @@ function initializeFirebaseAdmin() {
 
 	// Try to load service account credentials
 	let serviceAccountKey = null;
+
+	// Method 0: Build from FIREBASE_ADMIN_* fragments
+	const fragmentKey = buildServiceAccountFromFragments();
+	if (fragmentKey) {
+		serviceAccountKey = fragmentKey;
+		console.log('✅ Built service account from FIREBASE_ADMIN_* variables');
+	}
 
 	// Method 1: Try from environment variable
 	if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
@@ -72,9 +145,7 @@ function initializeFirebaseAdmin() {
 	}
 
 	// Get project ID from config or service account
-	const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 
-		serviceAccountKey.project_id || 
-		'centerforsportsandscience';
+	const projectId = resolveProjectId(serviceAccountKey.project_id);
 
 	return initializeApp({
 		credential: cert(serviceAccountKey),
@@ -92,7 +163,8 @@ async function createAdminUser() {
 		// Initialize Firebase Admin
 		const app = initializeFirebaseAdmin();
 		const auth = getAuth(app);
-		const db = getFirestore(app, 'css-2025'); // Use the named database
+		const databaseId = resolveDatabaseId();
+		const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
 
 		// Check if user already exists
 		let userRecord;

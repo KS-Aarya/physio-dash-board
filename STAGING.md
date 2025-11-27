@@ -47,9 +47,15 @@ NEXT_PUBLIC_FIREBASE_STAGING_PROJECT_ID=centersportsscience-staging
 NEXT_PUBLIC_FIREBASE_STAGING_STORAGE_BUCKET=centersportsscience-staging.appspot.com
 NEXT_PUBLIC_FIREBASE_STAGING_MESSAGING_SENDER_ID=your_staging_sender_id
 NEXT_PUBLIC_FIREBASE_STAGING_APP_ID=your_staging_app_id
+NEXT_PUBLIC_FIREBASE_STAGING_MEASUREMENT_ID=G-STAGING123
+NEXT_PUBLIC_FIREBASE_STAGING_DATABASE_ID=(default)
 
 # Staging Service Account
 GOOGLE_APPLICATION_CREDENTIALS_STAGING=./firebase-service-account-staging.json
+# or use fragments:
+# FIREBASE_ADMIN_STAGING_PROJECT_ID=centersportsscience-staging
+# FIREBASE_ADMIN_STAGING_CLIENT_EMAIL=firebase-adminsdk-xyz@centersportsscience-staging.iam.gserviceaccount.com
+# FIREBASE_ADMIN_STAGING_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
 **Note:** Next.js only loads `.env.local`, not `.env.staging.local`. All variables must be in `.env.local`.
