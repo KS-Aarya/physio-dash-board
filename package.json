@@ -1,0 +1,51 @@
+{
+  "name": "centersportsscience-nextjs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:staging": "cross-env NEXT_PUBLIC_ENVIRONMENT=staging next dev",
+    "build": "next build",
+    "build:staging": "cross-env NEXT_PUBLIC_ENVIRONMENT=staging next build",
+    "start": "next start",
+    "start:staging": "cross-env NEXT_PUBLIC_ENVIRONMENT=staging next start",
+    "lint": "eslint",
+    "test:firebase-connectivity": "node scripts/test-firebase-connectivity.js",
+    "create:admin": "node scripts/create-admin-user.js"
+  },
+  "dependencies": {
+    "@fullcalendar/core": "^6.1.19",
+    "@fullcalendar/daygrid": "^6.1.19",
+    "@fullcalendar/interaction": "^6.1.19",
+    "@fullcalendar/react": "^6.1.19",
+    "@fullcalendar/timegrid": "^6.1.19",
+    "@sentry/nextjs": "^10.25.0",
+    "chart.js": "^4.5.1",
+    "core-js": "^3.40.0",
+    "dayjs": "^1.11.19",
+    "file-saver": "^2.0.5",
+    "firebase": "^12.6.0",
+    "firebase-admin": "^13.6.0",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
+    "next": "16.0.1",
+    "papaparse": "^5.5.3",
+    "react": "19.2.0",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "19.2.0",
+    "resend": "^6.4.2",
+    "twilio": "^5.10.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
