@@ -1,37 +1,258 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 
-const dashboards = [
-	{ label: 'Admin Dashboard', href: '/admin', description: 'User management, reports, and system configuration.' },
-	{ label: 'Front Desk', href: '/frontdesk', description: 'Patient intake, appointments, and billing tools.' },
-	{ label: 'Clinical Team', href: '/clinical-team', description: 'Assessments, treatment plans, and therapist workflow.' },
-];
+type AllowedRole = 'Admin' | 'FrontDesk' | 'ClinicalTeam';
+
+const ROLE_ROUTES: Record<AllowedRole, string> = {
+	Admin: '/admin',
+	FrontDesk: '/frontdesk',
+	ClinicalTeam: '/clinical-team',
+};
 
 export default function LoginPage() {
+	const [showPassword, setShowPassword] = useState(false);
+	const [formState, setFormState] = useState({ email: '', password: '' });
+	const [error, setError] = useState<string | null>(null);
+	const [loading, setLoading] = useState(false);
+	const router = useRouter();
+
+	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		setError(null);
+
+		const trimmedEmail = formState.email.trim().toLowerCase();
+		const trimmedPassword = formState.password.trim();
+
+		if (!trimmedEmail) {
+			setError('Please enter your email address.');
+			return;
+		}
+
+		if (!trimmedPassword) {
+			setError('Please enter your password.');
+			return;
+		}
+
+		setLoading(true);
+
+		try {
+			// Step 1: Authenticate with Firebase Auth
+			const userCredential = await signInWithEmailAndPassword(auth as any, trimmedEmail, trimmedPassword);
+			const uid = userCredential.user.uid;
+
+			// Step 2: Fetch staff document from Firestore using UID
+			const staffDocRef = doc(db as any, 'staff', uid);
+			const staffSnap = await getDoc(staffDocRef);
+
+			if (!staffSnap.exists()) {
+				setError('Staff profile not found. Please contact your administrator.');
+				setLoading(false);
+				return;
+			}
+
+			const staffData = staffSnap.data();
+			const role = staffData.role as AllowedRole | undefined;
+			const status = staffData.status as 'Active' | 'Inactive' | undefined;
+
+			// Step 3: Check if account is active
+			if (status !== 'Active' || staffData.deleted === true) {
+				setError('Your account is inactive. Please contact your administrator.');
+				setLoading(false);
+				return;
+			}
+
+			// Step 4: Check if role is valid and has a dashboard
+			if (!role || !(role in ROLE_ROUTES)) {
+				setError('Your role does not have dashboard access. Please contact your administrator.');
+				setLoading(false);
+				return;
+			}
+
+			// Step 5: Redirect to appropriate dashboard
+			const dashboardPath = ROLE_ROUTES[role];
+			router.push(dashboardPath);
+		} catch (error: any) {
+			console.error('Login error:', error);
+			setLoading(false);
+
+			// Handle specific Firebase Auth errors
+			if (error.code === 'auth/user-not-found') {
+				setError('No account found with this email address.');
+			} else if (error.code === 'auth/wrong-password') {
+				setError('Incorrect password. Please try again.');
+			} else if (error.code === 'auth/invalid-email') {
+				setError('Invalid email address format.');
+			} else if (error.code === 'auth/user-disabled') {
+				setError('This account has been disabled. Please contact your administrator.');
+			} else if (error.code === 'auth/too-many-requests') {
+				setError('Too many failed login attempts. Please try again later.');
+			} else {
+				setError(error.message || 'Unable to sign in. Please try again.');
+			}
+		}
+	};
+
 	return (
-		<div className="flex min-h-svh items-center justify-center bg-gray-50 px-4 py-10">
-			<div className="w-full max-w-lg">
-				<div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-					<h2 className="mb-2 text-center text-xl font-semibold text-gray-900">Choose a dashboard</h2>
-					<p className="mb-6 text-center text-sm text-gray-600">
-						Authentication has been disabled for this environment. Pick a dashboard to explore the app.
-					</p>
-					<div className="space-y-4">
-						{dashboards.map(item => (
-							<Link
-								key={item.href}
-								href={item.href}
-								className="block rounded-lg border border-gray-200 px-4 py-3 transition hover:border-gray-300 hover:bg-gray-50"
-							>
-								<p className="text-sm font-semibold text-gray-900">{item.label}</p>
-								<p className="text-sm text-gray-600">{item.description}</p>
-							</Link>
-						))}
+		<div className="relative min-h-svh overflow-hidden bg-gradient-to-br from-black via-slate-900 via-purple-900 to-purple-300">
+			{/* Animated gradient overlays */}
+			<div className="pointer-events-none absolute inset-0">
+				<div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(139,92,246,0.15),_transparent_50%)]" />
+				<div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,_rgba(192,132,252,0.1),_transparent_50%)]" />
+				<div className="absolute top-0 left-0 w-[600px] h-[600px] bg-purple-600 rounded-full blur-[120px] opacity-15" />
+				<div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-400 rounded-full blur-[100px] opacity-10" />
+			</div>
+
+			<div className="relative flex min-h-svh">
+				{/* Left Side - Branding */}
+				<div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16 text-white">
+					{/* Large Logo - Left Center */}
+					<div className="mb-10">
+						<Image
+							src="/CenterSportsScience_logo.jpg"
+							alt="Center for Sports Science logo"
+							width={180}
+							height={180}
+							className="h-40 w-40 object-contain drop-shadow-2xl"
+							priority
+						/>
+					</div>
+
+					{/* Welcome Text - Left Aligned, Smaller */}
+					<div className="mb-8">
+						<h1 className="text-4xl font-extrabold mb-2 leading-tight">
+							Welcome Back
+						</h1>
+						<p className="text-3xl font-bold text-purple-200">.!</p>
+					</div>
+
+					{/* Center for Sports Science - Left Aligned */}
+					<div className="mb-8">
+						<h2 className="text-4xl font-bold mb-2 leading-tight">Center for Sports</h2>
+						<h2 className="text-4xl font-bold leading-tight">Science</h2>
+					</div>
+
+					{/* Decorative line - Left Aligned */}
+					<div className="mt-6">
+						<div className="h-1 w-24 bg-gradient-to-r from-purple-300 to-purple-200 rounded-full"></div>
+					</div>
+				</div>
+
+				{/* Right Side - Login Form */}
+				<div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12">
+					<div className="w-full max-w-md">
+						{/* Login Card */}
+						<div className="rounded-3xl bg-white/95 backdrop-blur-xl border border-white/20 px-8 py-10 shadow-2xl">
+							<div className="relative">
+								{/* Login Header */}
+								<div className="mb-8">
+									<h2 className="text-4xl font-bold text-slate-900 mb-2">Login</h2>
+									<p className="text-slate-600">Glad you're back.!</p>
+								</div>
+
+								<form className="space-y-6" onSubmit={handleSubmit}>
+									{/* Email Input */}
+									<div className="space-y-2">
+										<label htmlFor="email" className="block text-sm font-semibold text-slate-700">
+											Email Address
+										</label>
+										<input
+											id="email"
+											type="email"
+											required
+											placeholder="your.email@centersports.com"
+											value={formState.email}
+											onChange={event => setFormState(current => ({ ...current, email: event.target.value }))}
+											disabled={loading}
+											className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none transition-all focus:border-purple-400 focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70"
+										/>
+									</div>
+
+									{/* Password Input */}
+									<div className="space-y-2">
+										<label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+											Password
+										</label>
+										<div className="relative">
+											<input
+												id="password"
+												type={showPassword ? 'text' : 'password'}
+												required
+												placeholder="Enter your password"
+												value={formState.password}
+												onChange={event => setFormState(current => ({ ...current, password: event.target.value }))}
+												disabled={loading}
+												className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 pr-12 text-sm text-slate-900 outline-none transition-all focus:border-purple-400 focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70"
+											/>
+											<button
+												type="button"
+												onClick={() => setShowPassword(prev => !prev)}
+												className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-purple-600 transition-colors"
+												disabled={loading}
+											>
+												{showPassword ? (
+													<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.29 3.29m0 0L9.88 9.88M6.29 6.29L3 3m3.29 3.29l3.29 3.29" />
+													</svg>
+												) : (
+													<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+													</svg>
+												)}
+											</button>
+										</div>
+									</div>
+
+									{/* Error Message */}
+									{error && (
+										<div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3">
+											<p className="text-sm font-medium text-red-800 flex items-center gap-2">
+												<svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+												</svg>
+												{error}
+											</p>
+										</div>
+									)}
+
+									{/* Login Button */}
+									<button
+										type="submit"
+										disabled={loading}
+										className="w-full rounded-xl bg-gradient-to-r from-purple-900 via-purple-800 to-purple-700 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-purple-900/40 transition-all hover:from-purple-800 hover:via-purple-700 hover:to-purple-600 hover:shadow-xl hover:shadow-purple-900/50 hover:scale-[1.02] focus:outline-none focus:ring-4 focus:ring-purple-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+									>
+										{loading ? (
+											<span className="flex items-center justify-center gap-2">
+												<svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+													<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+													<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+												</svg>
+												Signing in...
+											</span>
+										) : (
+											'Login'
+										)}
+									</button>
+								</form>
+
+								{/* Forgot Password */}
+								<div className="mt-6 text-center">
+									<Link href="/(auth)/forgot-password" className="text-sm text-slate-600 hover:text-purple-600 transition-colors">
+										Forgot password ?
+									</Link>
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
 		</div>
 	);
 }
-

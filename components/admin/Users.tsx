@@ -43,10 +43,13 @@ interface Employee {
 	profileImage?: string;
 }
 
+type LimitedRoles = Extract<EmployeeRole, 'Admin' | 'FrontDesk' | 'ClinicalTeam'>;
+const ALLOWED_ROLES: LimitedRoles[] = ['Admin', 'FrontDesk', 'ClinicalTeam'];
+
 interface FormState {
 	userName: string;
 	userEmail: string;
-	userRole: Extract<EmployeeRole, 'FrontDesk' | 'ClinicalTeam' | 'Physiotherapist' | 'StrengthAndConditioning'>;
+	userRole: LimitedRoles;
 	userStatus: EmployeeStatus;
 	password: string;
 }
@@ -60,10 +63,9 @@ const ROLE_LABELS: Record<EmployeeRole, string> = {
 };
 
 const ROLE_OPTIONS: Array<{ value: FormState['userRole']; label: string }> = [
+	{ value: 'Admin', label: 'Admin' },
 	{ value: 'FrontDesk', label: 'Front Desk' },
 	{ value: 'ClinicalTeam', label: 'Clinical Team' },
-	{ value: 'Physiotherapist', label: 'Physiotherapist' },
-	{ value: 'StrengthAndConditioning', label: 'Strength & Conditioning' },
 ];
 
 const INITIAL_FORM: FormState = {
@@ -150,12 +152,7 @@ export default function Users() {
 						profileImage: data.profileImage ? String(data.profileImage) : undefined,
 					};
 					})
-					.filter(record => 
-						record.role === 'FrontDesk' || 
-						record.role === 'ClinicalTeam' || 
-						record.role === 'Physiotherapist' || 
-						record.role === 'StrengthAndConditioning'
-					)
+					.filter(record => ALLOWED_ROLES.includes(record.role as LimitedRoles))
 					.sort((a, b) => a.userName.localeCompare(b.userName));
 
 				setEmployees(records);
@@ -217,7 +214,9 @@ export default function Users() {
 		setFormState({
 			userName: employee.userName,
 			userEmail: employee.userEmail,
-			userRole: employee.role === 'Admin' ? 'FrontDesk' : (employee.role as FormState['userRole']),
+			userRole: ALLOWED_ROLES.includes(employee.role as LimitedRoles)
+				? (employee.role as LimitedRoles)
+				: 'FrontDesk',
 			userStatus: employee.status,
 			password: '',
 		});
