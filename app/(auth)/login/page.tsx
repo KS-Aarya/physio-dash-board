@@ -47,22 +47,41 @@ export default function LoginPage() {
 			const userCredential = await signInWithEmailAndPassword(auth as any, trimmedEmail, trimmedPassword);
 			const uid = userCredential.user.uid;
 
-			// Step 2: Fetch staff document from Firestore using UID
-			const staffDocRef = doc(db as any, 'staff', uid);
-			const staffSnap = await getDoc(staffDocRef);
+			// Step 2: Fetch user document from Firestore using UID
+			const userDocRef = doc(db as any, 'users', uid);
+			const userSnap = await getDoc(userDocRef);
 
-			if (!staffSnap.exists()) {
-				setError('Staff profile not found. Please contact your administrator.');
+			if (!userSnap.exists()) {
+				setError('User profile not found. Please contact your administrator.');
 				setLoading(false);
 				return;
 			}
 
-			const staffData = staffSnap.data();
-			const role = staffData.role as AllowedRole | undefined;
-			const status = staffData.status as 'Active' | 'Inactive' | undefined;
+			const userData = userSnap.data();
+			const rawRole = userData.role as string | undefined;
+
+			// Normalize role to match expected format (case-insensitive matching)
+			let role: AllowedRole | undefined;
+			if (rawRole) {
+				const normalizedRole = String(rawRole).trim();
+				const lowerRole = normalizedRole.toLowerCase();
+				
+				// Map common variations to expected roles
+				if (lowerRole === 'admin') {
+					role = 'Admin';
+				} else if (lowerRole === 'frontdesk' || lowerRole === 'front desk' || lowerRole === 'front-desk') {
+					role = 'FrontDesk';
+				} else if (lowerRole === 'clinicalteam' || lowerRole === 'clinical team' || lowerRole === 'clinical-team' || lowerRole === 'clinic') {
+					role = 'ClinicalTeam';
+				} else if (normalizedRole === 'Admin' || normalizedRole === 'FrontDesk' || normalizedRole === 'ClinicalTeam') {
+					role = normalizedRole as AllowedRole;
+				}
+			}
+
+			const status = userData.status as 'Active' | 'Inactive' | undefined;
 
 			// Step 3: Check if account is active
-			if (status !== 'Active' || staffData.deleted === true) {
+			if (status !== 'Active' || userData.deleted === true) {
 				setError('Your account is inactive. Please contact your administrator.');
 				setLoading(false);
 				return;
@@ -70,6 +89,7 @@ export default function LoginPage() {
 
 			// Step 4: Check if role is valid and has a dashboard
 			if (!role || !(role in ROLE_ROUTES)) {
+				console.error('Invalid role:', rawRole, 'Normalized:', role);
 				setError('Your role does not have dashboard access. Please contact your administrator.');
 				setLoading(false);
 				return;
@@ -83,10 +103,10 @@ export default function LoginPage() {
 			setLoading(false);
 
 			// Handle specific Firebase Auth errors
-			if (error.code === 'auth/user-not-found') {
+			if (error.code === 'auth/invalid-credential') {
+				setError('Invalid email or password. Please check your credentials and try again.');
+			} else if (error.code === 'auth/user-not-found') {
 				setError('No account found with this email address.');
-			} else if (error.code === 'auth/wrong-password') {
-				setError('Incorrect password. Please try again.');
 			} else if (error.code === 'auth/invalid-email') {
 				setError('Invalid email address format.');
 			} else if (error.code === 'auth/user-disabled') {
@@ -256,3 +276,4 @@ export default function LoginPage() {
 		</div>
 	);
 }
+

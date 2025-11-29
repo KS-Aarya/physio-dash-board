@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-	addDoc,
 	collection,
 	doc,
 	onSnapshot,
 	serverTimestamp,
+	setDoc,
 	updateDoc,
 	Timestamp,
 } from 'firebase/firestore';
@@ -253,6 +253,35 @@ export default function Users() {
 		}
 	};
 
+	const createAuthAccount = async (params: {
+		email: string;
+		password: string;
+		displayName: string;
+		role: string;
+	}) => {
+		const currentUser = auth.currentUser;
+		if (!currentUser) {
+			throw new Error('Your admin session expired. Please sign in again and retry.');
+		}
+		const token = await currentUser.getIdToken();
+		const response = await fetch('/api/admin/users', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				...params,
+				requestingUserRole: user?.role ?? undefined,
+			}),
+		});
+		const data = await response.json();
+		if (!response.ok || data?.status !== 'ok') {
+			throw new Error(data?.message || 'Failed to create authentication user.');
+		}
+		return data.user as { uid: string; email: string; displayName: string; role: string };
+	};
+
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		setError(null);
@@ -266,11 +295,15 @@ export default function Users() {
 			return;
 		}
 
-		// Password is optional since authentication is disabled
-		// Only validate if provided
-		if (!editingEmployee && trimmedPassword && trimmedPassword.length < 6) {
-			setError('Password must be at least 6 characters long (if provided).');
-			return;
+		if (!editingEmployee) {
+			if (!trimmedPassword) {
+				setError('Password is required when creating a new employee login.');
+				return;
+			}
+			if (trimmedPassword.length < 6) {
+				setError('Password must be at least 6 characters long.');
+				return;
+			}
 		}
 
 		setSaving(true);
@@ -283,10 +316,16 @@ export default function Users() {
 					status: formState.userStatus,
 				});
 			} else {
-				// Create new employee - since authentication is disabled, create staff record directly
 				try {
-					// Create staff record in Firestore directly
-					await addDoc(collection(db, 'staff'), {
+					const authUser = await createAuthAccount({
+						email: trimmedEmail,
+						password: trimmedPassword,
+						displayName: trimmedName,
+						role: formState.userRole,
+					});
+
+					await setDoc(doc(db, 'staff', authUser.uid), {
+						authUid: authUser.uid,
 						userName: trimmedName,
 						userEmail: trimmedEmail,
 						role: formState.userRole,
@@ -294,52 +333,18 @@ export default function Users() {
 						createdAt: serverTimestamp(),
 					});
 				} catch (err: any) {
-					console.error('Failed to create staff record:', err);
-					
-					// Check if it's a permissions error
-					if (err?.code === 'permission-denied' || err?.message?.includes('permission') || err?.code === 'PERMISSION_DENIED') {
-						setError(
-							'❌ Permission Denied Error!\n\n' +
-							'Your Firestore security rules are blocking writes.\n\n' +
-							'🔧 Quick Fix:\n' +
-							'1. Open Firebase Console → Firestore Database → Rules tab\n' +
-							'2. Replace the rules with:\n\n' +
-							'rules_version = \'2\';\n' +
-							'service cloud.firestore {\n' +
-							'  match /databases/{database}/documents {\n' +
-							'    match /{document=**} {\n' +
-							'      allow read, write: if true;\n' +
-							'    }\n' +
-							'  }\n' +
-							'}\n\n' +
-							'3. Click "Publish"\n' +
-							'4. Try saving again\n\n' +
-							'Error code: ' + (err?.code || 'Unknown')
-						);
-					} else if (err?.code === 'unavailable' || err?.message?.includes('unavailable')) {
-						setError(
-							'❌ Firestore Database Unavailable\n\n' +
-							'Please check:\n' +
-							'1. Firebase Console → Firestore Database exists and is active\n' +
-							'2. Your internet connection\n' +
-							'3. Firestore rules are published\n\n' +
-							'Error: ' + (err?.message || 'Unknown error')
-						);
-					} else {
-						const errorMsg = err?.message || err?.toString() || 'Unknown error';
-						const errorCode = err?.code || 'N/A';
-						setError(
-							'❌ Failed to Create Employee\n\n' +
-							'Error: ' + errorMsg + '\n' +
-							'Code: ' + errorCode + '\n\n' +
-							'Please check:\n' +
-							'1. Firestore database is created\n' +
-							'2. Firestore rules allow writes (should be: allow read, write: if true;)\n' +
-							'3. Browser console (F12) for more details'
-						);
-					}
+					console.error('Failed to create employee login:', err);
+					const errorMsg = err?.message || err?.toString() || 'Unknown error';
+					setError(
+						'❌ Failed to create employee login.\n\n' +
+						errorMsg +
+						'\n\nPlease ensure:\n' +
+						'• You are signed in as an admin\n' +
+						'• Firebase Admin credentials are configured (see FIREBASE_ADMIN_SETUP.md)\n' +
+						'• Firestore rules allow writes\n'
+					);
 					setSaving(false);
-					return; // Don't close dialog, show error
+					return;
 				}
 			}
 			closeDialog();

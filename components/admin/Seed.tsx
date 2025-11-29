@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -512,6 +512,113 @@ export default function Seed() {
 		}
 	};
 
+	const handleDeleteSampleAppointments = async () => {
+		if (!window.confirm('Are you sure you want to delete all sample appointments? This action cannot be undone.')) {
+			return;
+		}
+
+		setSeeding(true);
+		setProgress('Searching for sample appointments...');
+
+		try {
+			// Sample patient names from seed data
+			const SAMPLE_PATIENT_NAMES = [
+				'John Doe',
+				'Jane Smith',
+				'Robert Johnson',
+				'Emily Williams',
+				'Michael Brown',
+				'Sarah Davis',
+				'David Wilson',
+				'Lisa Anderson',
+			];
+
+			// Sample doctor names from seed data
+			const SAMPLE_DOCTOR_NAMES = [
+				'Dr. Smith',
+				'Dr. Johnson',
+				'Dr. Williams',
+				'Dr. Brown',
+				'Dr. Davis',
+			];
+
+			// Get all appointments
+			const appointmentsRef = collection(db, 'appointments');
+			const snapshot = await getDocs(appointmentsRef);
+
+			if (snapshot.empty) {
+				setProgress('No appointments found.');
+				setSeeding(false);
+				return;
+			}
+
+			const appointmentsToDelete: string[] = [];
+			let checkedCount = 0;
+
+			snapshot.forEach((docSnap) => {
+				checkedCount++;
+				const data = docSnap.data();
+				let isSample = false;
+
+				// Check notes for "Sample" or "testing"
+				if (data.notes) {
+					const notesLower = String(data.notes).toLowerCase();
+					if (notesLower.includes('sample') || notesLower.includes('testing')) {
+						isSample = true;
+					}
+				}
+
+				// Check patient name
+				if (data.patient && SAMPLE_PATIENT_NAMES.includes(data.patient)) {
+					isSample = true;
+				}
+
+				// Check doctor name
+				if (data.doctor && SAMPLE_DOCTOR_NAMES.includes(data.doctor)) {
+					isSample = true;
+				}
+
+				// Check patient ID pattern (PAT1000-PAT9999)
+				if (data.patientId && /^PAT\d{4}$/.test(data.patientId)) {
+					isSample = true;
+				}
+
+				if (isSample) {
+					appointmentsToDelete.push(docSnap.id);
+				}
+			});
+
+			setProgress(`Found ${appointmentsToDelete.length} sample appointments out of ${checkedCount} total. Deleting...`);
+
+			if (appointmentsToDelete.length === 0) {
+				setProgress('No sample appointments found. Nothing to delete.');
+				setSeeding(false);
+				return;
+			}
+
+			// Delete appointments
+			let deletedCount = 0;
+			let errorCount = 0;
+
+			for (const appointmentId of appointmentsToDelete) {
+				try {
+					await deleteDoc(doc(db, 'appointments', appointmentId));
+					deletedCount++;
+				} catch (error) {
+					errorCount++;
+					console.error('Error deleting appointment:', appointmentId, error);
+				}
+			}
+
+			setProgress(`Successfully deleted ${deletedCount} sample appointments${errorCount > 0 ? ` (${errorCount} errors)` : ''}!`);
+		} catch (error) {
+			console.error('Error deleting sample appointments:', error);
+			setProgress(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			setSeeding(false);
+		}
+	};
+
 	return (
 		<div className="min-h-svh bg-slate-50 px-6 py-10">
 			<div className="mx-auto flex max-w-4xl flex-col gap-8">
@@ -594,6 +701,22 @@ export default function Seed() {
 							<button type="button" onClick={handleSeedAll} disabled={seeding} className="btn-primary">
 								<i className="fas fa-database text-xs" aria-hidden="true" />
 								{seeding ? 'Seeding...' : 'Seed All Data'}
+							</button>
+						</div>
+
+						<div className="border-t border-slate-200 pt-4">
+							<h3 className="mb-4 text-sm font-medium text-slate-700">Cleanup Sample Data</h3>
+							<p className="mb-3 text-xs text-slate-500">
+								Delete fake/sample appointments from the calendar. This will remove appointments with sample patient names, doctor names, or notes containing "sample" or "testing".
+							</p>
+							<button
+								type="button"
+								onClick={handleDeleteSampleAppointments}
+								disabled={seeding}
+								className="btn-secondary border-rose-300 text-rose-700 hover:border-rose-400 hover:bg-rose-50"
+							>
+								<i className="fas fa-trash text-xs" aria-hidden="true" />
+								{seeding ? 'Deleting...' : 'Delete Sample Appointments'}
 							</button>
 						</div>
 

@@ -208,4 +208,3 @@ export default function Sidebar({ title, links, onLinkClick, activeHref, onProfi
 		</nav>
 	);
 }
-
