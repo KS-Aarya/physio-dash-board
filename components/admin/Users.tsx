@@ -1505,16 +1505,16 @@ export default function Users() {
 										<i className="fas fa-user text-sky-600 text-xl" aria-hidden="true" />
 									</div>
 								)}
-								<div>
-									<div className="flex items-center gap-2">
-										<h3 className="text-lg font-semibold text-slate-900">{selectedEmployee.userName}</h3>
-										{selectedEmployee.deleted && (
-											<span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
-												Past Employee
-											</span>
-										)}
-									</div>
-									<p className="text-xs text-slate-500">{selectedEmployee.userEmail}</p>
+							<div>
+								<div className="flex items-center gap-2">
+									<h3 className="text-lg font-semibold text-slate-900">{selectedEmployee.userName}</h3>
+									{selectedEmployee.deleted && (
+										<span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+											Past Employee
+										</span>
+									)}
+								</div>
+								<p className="text-xs text-slate-500">{selectedEmployee.userEmail}</p>
 								</div>
 							</div>
 							<button

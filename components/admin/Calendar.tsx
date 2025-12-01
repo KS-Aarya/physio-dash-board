@@ -515,35 +515,35 @@ export default function Calendar() {
 
 	return (
 		<div className="space-y-10 px-6 py-6">
-			{appointments.length === 0 && (
-				<div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-					No appointments found. Appointments will appear here once they are created.
-				</div>
-			)}
-
-			{appointments.length > 0 && calendarEvents.length === 0 && (
-				<div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-					Found {appointments.length} appointment(s), but none have valid dates. Please check that appointments have dates in YYYY-MM-DD format.
-				</div>
-			)}
-
-			{calendarEvents.length > 0 && (() => {
-				const earliestEvent = calendarEvents.reduce((earliest, event) => {
-					const eventDate = new Date(event.start);
-					const earliestDate = new Date(earliest.start);
-					return eventDate < earliestDate ? event : earliest;
-				}, calendarEvents[0]);
-				const earliestDate = new Date(earliestEvent.start);
-				const monthName = earliestDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-				
-				return (
-					<div className="rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-						💡 <strong>Tip:</strong> Your appointments are in <strong>{monthName}</strong>. Use the navigation arrows or click "Today" to navigate to that month.
+				{appointments.length === 0 && (
+					<div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+						No appointments found. Appointments will appear here once they are created.
 					</div>
-				);
-			})()}
+				)}
 
-			{calendarEvents.length > 0 && (
+				{appointments.length > 0 && calendarEvents.length === 0 && (
+					<div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+						Found {appointments.length} appointment(s), but none have valid dates. Please check that appointments have dates in YYYY-MM-DD format.
+					</div>
+				)}
+
+				{calendarEvents.length > 0 && (() => {
+					const earliestEvent = calendarEvents.reduce((earliest, event) => {
+						const eventDate = new Date(event.start);
+						const earliestDate = new Date(earliest.start);
+						return eventDate < earliestDate ? event : earliest;
+					}, calendarEvents[0]);
+					const earliestDate = new Date(earliestEvent.start);
+					const monthName = earliestDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+					
+					return (
+						<div className="rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+							💡 <strong>Tip:</strong> Your appointments are in <strong>{monthName}</strong>. Use the navigation arrows or click "Today" to navigate to that month.
+						</div>
+					);
+				})()}
+
+				{calendarEvents.length > 0 && (
 					<div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-5 py-4">
 						<div className="flex items-center gap-3">
 							<div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -577,10 +577,10 @@ export default function Calendar() {
 					</div>
 				)}
 
-			<div className="border-t border-slate-200" />
+				<div className="border-t border-slate-200" />
 
-			<section className="flex flex-col gap-6 lg:flex-row">
-				<div className="flex-1 rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
+				<section className="flex flex-col gap-6 lg:flex-row">
+					<div className="flex-1 rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
 						<div className="mb-6 flex flex-wrap items-center justify-between gap-4">
 							<div className="flex items-center gap-2">
 								<button
@@ -684,8 +684,8 @@ export default function Calendar() {
 								</select>
 							</div>
 						</div>
-				<div className="[&_.fc-toolbar-title]:text-xl [&_.fc-toolbar-title]:font-bold [&_.fc-toolbar-title]:text-slate-800 [&_.fc-button]:border-slate-300 [&_.fc-button]:bg-white [&_.fc-button]:text-slate-700 [&_.fc-button]:font-medium [&_.fc-button:hover]:border-sky-400 [&_.fc-button:hover]:bg-sky-50 [&_.fc-button:hover]:text-sky-700 [&_.fc-button-active]:bg-sky-100 [&_.fc-button-active]:border-sky-400 [&_.fc-button-active]:text-sky-700 [&_.fc-button-active]:shadow-sm [&_.fc-daygrid-day-number]:text-slate-700 [&_.fc-daygrid-day-number]:font-medium [&_.fc-col-header-cell]:bg-gradient-to-b [&_.fc-col-header-cell]:from-slate-50 [&_.fc-col-header-cell]:to-slate-100 [&_.fc-col-header-cell]:text-slate-700 [&_.fc-col-header-cell]:font-semibold [&_.fc-col-header-cell]:py-3 [&_.fc-day-today]:bg-gradient-to-br [&_.fc-day-today]:from-sky-50 [&_.fc-day-today]:to-blue-50 [&_.fc-day-today]:border-2 [&_.fc-day-today]:border-sky-300 [&_.fc-timegrid-slot]:min-h-[2.5em] [&_.fc-event]:cursor-pointer [&_.fc-event]:transition-all [&_.fc-event:hover]:shadow-md [&_.fc-event:hover]:scale-[1.02] [&_.fc-event-title]:font-medium [&_.fc-event-title]:px-1">
-					<FullCalendar
+					<div className="[&_.fc-toolbar-title]:text-xl [&_.fc-toolbar-title]:font-bold [&_.fc-toolbar-title]:text-slate-800 [&_.fc-button]:border-slate-300 [&_.fc-button]:bg-white [&_.fc-button]:text-slate-700 [&_.fc-button]:font-medium [&_.fc-button:hover]:border-sky-400 [&_.fc-button:hover]:bg-sky-50 [&_.fc-button:hover]:text-sky-700 [&_.fc-button-active]:bg-sky-100 [&_.fc-button-active]:border-sky-400 [&_.fc-button-active]:text-sky-700 [&_.fc-button-active]:shadow-sm [&_.fc-daygrid-day-number]:text-slate-700 [&_.fc-daygrid-day-number]:font-medium [&_.fc-col-header-cell]:bg-gradient-to-b [&_.fc-col-header-cell]:from-slate-50 [&_.fc-col-header-cell]:to-slate-100 [&_.fc-col-header-cell]:text-slate-700 [&_.fc-col-header-cell]:font-semibold [&_.fc-col-header-cell]:py-3 [&_.fc-day-today]:bg-gradient-to-br [&_.fc-day-today]:from-sky-50 [&_.fc-day-today]:to-blue-50 [&_.fc-day-today]:border-2 [&_.fc-day-today]:border-sky-300 [&_.fc-timegrid-slot]:min-h-[2.5em] [&_.fc-event]:cursor-pointer [&_.fc-event]:transition-all [&_.fc-event:hover]:shadow-md [&_.fc-event:hover]:scale-[1.02] [&_.fc-event-title]:font-medium [&_.fc-event-title]:px-1">
+						<FullCalendar
 							ref={calendarRef}
 							plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
 							initialView="dayGridMonth"
@@ -725,19 +725,19 @@ export default function Calendar() {
 							slotDuration="00:30:00"
 							slotLabelInterval="01:00:00"
 							timeZone="local"
-					/>
-				</div>
-				{isRescheduling && (
-					<div className="mt-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 shadow-sm">
-						<div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
-						<p className="text-sm font-medium text-amber-800">Updating appointment...</p>
+						/>
 					</div>
-				)}
-			</div>
-		</section>
+						{isRescheduling && (
+							<div className="mt-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 shadow-sm">
+								<div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+								<p className="text-sm font-medium text-amber-800">Updating appointment...</p>
+							</div>
+						)}
+					</div>
+				</section>
 
-			{selectedDate && (
-				<div
+				{selectedDate && (
+					<div
 						role="dialog"
 						aria-modal="true"
 						className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm px-4 py-6"
@@ -822,12 +822,12 @@ export default function Calendar() {
 									</ul>
 								)}
 							</div>
+						</div>
 					</div>
-				</div>
-			)}
+				)}
 
-			{detailEvent && (
-				<div
+				{detailEvent && (
+					<div
 						role="dialog"
 						aria-modal="true"
 						className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm px-4 py-6"

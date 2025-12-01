@@ -8,11 +8,12 @@ import Calendar from '@/components/clinical-team/Calendar';
 import EditReport from '@/components/clinical-team/EditReport';
 import Availability from '@/components/clinical-team/Availability';
 import Appointments from '@/components/clinical-team/Appointments';
-import Notifications from '@/components/clinical-team/Notifications';
+import Notifications from '@/components/admin/Notifications';
 import Profile from '@/components/Profile';
 import Transfer from '@/components/clinical-team/Transfer';
 import SessionTransfer from '@/components/clinical-team/SessionTransfer';
 import MyPerformance from '@/components/clinical-team/MyPerformance';
+import { useAuth } from '@/contexts/AuthContext';
 
 type ClinicalTeamPage = 'dashboard' | 'calendar' | 'edit-report' | 'availability' | 'transfer' | 'session-transfer' | 'appointments' | 'notifications' | 'profile' | 'my-performance';
 
@@ -20,7 +21,7 @@ const clinicalTeamLinks: SidebarLink[] = [
 	{ href: '#dashboard', label: 'Dashboard', icon: 'fas fa-dumbbell' },
 	{ href: '#calendar', label: 'Calendar', icon: 'fas fa-calendar-week' },
 	{ href: '#appointments', label: 'Appointments', icon: 'fas fa-calendar-check' },
-	{ href: '#notifications', label: 'Notifications', icon: 'fas fa-bell' },
+	{ href: '#notifications', label: 'Notifications & Messaging', icon: 'fas fa-bell' },
 	{ href: '#edit-report', label: 'View/Edit Reports', icon: 'fas fa-notes-medical' },
 	{ href: '#availability', label: 'My Availability', icon: 'fas fa-calendar-check' },
 	{ href: '#transfer', label: 'Transfer Patients', icon: 'fas fa-exchange-alt' },
@@ -31,8 +32,33 @@ const clinicalTeamLinks: SidebarLink[] = [
 export default function ClinicalTeamLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
 	const router = useRouter();
+	const { user, loading } = useAuth();
 	const [activePage, setActivePage] = useState<ClinicalTeamPage>('dashboard');
 	const isNavigatingRef = useRef(false);
+
+	// Role guard: only Clinical team can access /clinical-team
+	useEffect(() => {
+		if (loading) return;
+
+		if (!user) {
+			router.replace('/login');
+			return;
+		}
+
+		const role = user.role;
+		const isClinical =
+			role === 'ClinicalTeam' || role === 'clinic' || role === 'Clinic';
+
+		if (!isClinical) {
+			if (role === 'Admin' || role === 'admin') {
+				router.replace('/admin');
+			} else if (role === 'FrontDesk' || role === 'frontdesk') {
+				router.replace('/frontdesk');
+			} else {
+				router.replace('/login');
+			}
+		}
+	}, [user, loading, router]);
 
 	// Detect route from pathname
 	useEffect(() => {
@@ -120,6 +146,15 @@ export default function ClinicalTeamLayout({ children }: { children: React.React
 				return <Dashboard onNavigate={handleLinkClick} />;
 		}
 	};
+
+	// Avoid flashing clinical UI while checking auth / redirecting
+	if (loading || !user || !(user.role === 'ClinicalTeam' || user.role === 'clinic' || user.role === 'Clinic')) {
+		return (
+			<div className="min-h-svh flex items-center justify-center bg-purple-50">
+				<div className="text-slate-600 text-sm">Checking access…</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="min-h-svh bg-purple-50">

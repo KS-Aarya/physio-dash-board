@@ -1,24 +1,50 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar, { type SidebarLink } from '@/components/Sidebar';
 import Dashboard from '@/components/frontdesk/Dashboard';
 import Patients from '@/components/frontdesk/Patients';
 import Billing from '@/components/frontdesk/Billing';
 import Calendar from '@/components/frontdesk/Calendar';
 import Profile from '@/components/Profile';
+import Notifications from '@/components/admin/Notifications';
+import { useAuth } from '@/contexts/AuthContext';
 
-type FrontdeskPage = 'dashboard' | 'patients' | 'billing' | 'calendar' | 'profile';
+type FrontdeskPage = 'dashboard' | 'patients' | 'billing' | 'calendar' | 'notifications' | 'profile';
 
 const frontdeskLinks: SidebarLink[] = [
 	{ href: '#dashboard', label: 'Dashboard', icon: 'fas fa-home' },
 	{ href: '#patients', label: 'Patient Management', icon: 'fas fa-users' },
 	{ href: '#calendar', label: 'Calendar', icon: 'fas fa-calendar-alt' },
 	{ href: '#billing', label: 'Billing', icon: 'fas fa-file-invoice-dollar' },
+	{ href: '#notifications', label: 'Notifications & Messaging', icon: 'fas fa-bell' },
 ];
 
 export default function FrontdeskLayout({ children }: { children: React.ReactNode }) {
+	const router = useRouter();
+	const { user, loading } = useAuth();
 	const [activePage, setActivePage] = useState<FrontdeskPage>('dashboard');
+
+	// Role guard: only FrontDesk can access /frontdesk
+	useEffect(() => {
+		if (loading) return;
+
+		if (!user) {
+			router.replace('/login');
+			return;
+		}
+
+		if (user.role !== 'FrontDesk') {
+			if (user.role === 'Admin' || user.role === 'admin') {
+				router.replace('/admin');
+			} else if (user.role === 'ClinicalTeam' || user.role === 'clinic' || user.role === 'Clinic') {
+				router.replace('/clinical-team');
+			} else {
+				router.replace('/login');
+			}
+		}
+	}, [user, loading, router]);
 
 	const handleLinkClick = (href: string) => {
 		const page = href.replace('#', '') as FrontdeskPage;
@@ -33,7 +59,7 @@ export default function FrontdeskLayout({ children }: { children: React.ReactNod
 	useEffect(() => {
 		const handleHashChange = () => {
 			const hash = window.location.hash.replace('#', '');
-			if (hash && ['dashboard', 'patients', 'calendar', 'billing', 'profile'].includes(hash)) {
+			if (hash && ['dashboard', 'patients', 'calendar', 'billing', 'notifications', 'profile'].includes(hash)) {
 				setActivePage(hash as FrontdeskPage);
 			}
 		};
@@ -47,7 +73,7 @@ export default function FrontdeskLayout({ children }: { children: React.ReactNod
 		// Listen for custom navigation events
 		const handleCustomNav = (event: CustomEvent) => {
 			const page = event.detail?.page;
-			if (page && ['dashboard', 'patients', 'calendar', 'billing', 'profile'].includes(page)) {
+			if (page && ['dashboard', 'patients', 'calendar', 'billing', 'notifications', 'profile'].includes(page)) {
 				setActivePage(page as FrontdeskPage);
 			}
 		};
@@ -70,12 +96,23 @@ export default function FrontdeskLayout({ children }: { children: React.ReactNod
 				return <Calendar />;
 			case 'billing':
 				return <Billing />;
+			case 'notifications':
+				return <Notifications />;
 			case 'profile':
 				return <Profile />;
 			default:
 				return <Dashboard onNavigate={handleLinkClick} />;
 		}
 	};
+
+	// Avoid flashing UI while checking auth / redirecting
+	if (loading || !user || user.role !== 'FrontDesk') {
+		return (
+			<div className="min-h-svh flex items-center justify-center bg-purple-50">
+				<div className="text-slate-600 text-sm">Checking access…</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="min-h-svh bg-purple-50">

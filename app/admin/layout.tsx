@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar, { type SidebarLink } from '@/components/Sidebar';
 import Dashboard from '@/components/admin/Dashboard';
 import Users from '@/components/admin/Users';
@@ -13,6 +14,7 @@ import AuditLogs from '@/components/admin/AuditLogs';
 import HeaderManagement from '@/components/admin/HeaderManagement';
 import Notifications from '@/components/admin/Notifications';
 import Profile from '@/components/Profile';
+import { useAuth } from '@/contexts/AuthContext';
 
 type AdminPage = 'dashboard' | 'users' | 'patients' | 'appointments' | 'billing' | 'analytics' | 'calendar' | 'calendar-appointments' | 'audit' | 'seed' | 'headers' | 'notifications' | 'profile';
 
@@ -30,7 +32,31 @@ const adminLinks: SidebarLink[] = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+	const router = useRouter();
+	const { user, loading } = useAuth();
 	const [activePage, setActivePage] = useState<AdminPage>('dashboard');
+
+	// Simple client-side role guard: only Admin can access /admin
+	useEffect(() => {
+		if (loading) return;
+
+		// Not logged in -> go to login
+		if (!user) {
+			router.replace('/login');
+			return;
+		}
+
+		// If not admin, redirect to their own dashboard
+		if (user.role !== 'Admin') {
+			if (user.role === 'FrontDesk') {
+				router.replace('/frontdesk');
+			} else if (user.role === 'ClinicalTeam' || user.role === 'clinic' || user.role === 'Clinic') {
+				router.replace('/clinical-team');
+			} else {
+				router.replace('/login');
+			}
+		}
+	}, [user, loading, router]);
 
 	const handleLinkClick = (href: string) => {
 		const page = href.replace('#', '') as AdminPage;
@@ -53,11 +79,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 			case 'calendar':
 			case 'calendar-appointments':
 				return <CalendarAppointments />;
-		case 'billing':
-			return <Billing />;
+			case 'billing':
+				return <Billing />;
 		case 'analytics':
-			return <Reports />;
-		case 'headers':
+				return <Reports />;
+			case 'headers':
 				return <HeaderManagement />;
 			case 'seed':
 				return <Seed />;
@@ -71,6 +97,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 			return <Dashboard onNavigate={handleLinkClick} />;
 		}
 	};
+
+	// While checking auth/redirecting, avoid flashing the admin UI
+	if (loading || !user || user.role !== 'Admin') {
+		return (
+			<div className="min-h-svh flex items-center justify-center bg-purple-50">
+				<div className="text-slate-600 text-sm">Checking access…</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="min-h-svh bg-purple-50">

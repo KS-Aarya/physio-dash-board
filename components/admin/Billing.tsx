@@ -2681,43 +2681,43 @@ export default function Billing() {
 									completed.map(bill => {
 										const patient = bill.patientId ? patientLookup.get(bill.patientId) : undefined;
 										return (
-											<tr key={bill.id}>
+										<tr key={bill.id}>
 												<td className="px-3 py-3 font-medium text-slate-800">
 													<div>{bill.patient}</div>
 													{patient?.department && (
 														<p className="mt-0.5 text-xs text-indigo-600 font-medium">{patient.department}</p>
 													)}
 												</td>
-												<td className="px-3 py-3 text-slate-600">{bill.patientId}</td>
-												<td className="px-3 py-3 text-slate-600">{bill.doctor || '—'}</td>
-												<td className="px-3 py-3 text-slate-700">Rs. {bill.amount.toFixed(2)}</td>
-												<td className="px-3 py-3 text-slate-600">{formatInstallmentPlan(bill)}</td>
-												<td className="px-3 py-3 text-slate-600">{bill.paymentMode || '—'}</td>
+											<td className="px-3 py-3 text-slate-600">{bill.patientId}</td>
+											<td className="px-3 py-3 text-slate-600">{bill.doctor || '—'}</td>
+											<td className="px-3 py-3 text-slate-700">Rs. {bill.amount.toFixed(2)}</td>
+											<td className="px-3 py-3 text-slate-600">{formatInstallmentPlan(bill)}</td>
+											<td className="px-3 py-3 text-slate-600">{bill.paymentMode || '—'}</td>
 												<td className="px-3 py-3 text-slate-600 text-xs">
 													{bill.createdByFrontdeskName || '—'}
 												</td>
 												<td className="px-3 py-3 text-slate-600 text-xs">
 													{bill.paymentRegisteredByFrontdeskName || '—'}
 												</td>
-												<td className="px-3 py-3">
-													<div className="flex items-center justify-end gap-2">
-														<button
-															type="button"
-															onClick={() => handleViewPaymentSlip(bill)}
-															className="inline-flex items-center rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
-														>
-															Receipt
-														</button>
-														<button
-															type="button"
-															onClick={() => handleGenerateInvoice(bill)}
-															className="inline-flex items-center rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
-														>
-															Invoice
-														</button>
-													</div>
-												</td>
-											</tr>
+											<td className="px-3 py-3">
+												<div className="flex items-center justify-end gap-2">
+													<button
+														type="button"
+														onClick={() => handleViewPaymentSlip(bill)}
+														className="inline-flex items-center rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+													>
+														Receipt
+													</button>
+													<button
+														type="button"
+														onClick={() => handleGenerateInvoice(bill)}
+														className="inline-flex items-center rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+													>
+														Invoice
+													</button>
+												</div>
+											</td>
+										</tr>
 										);
 									})
 								)}

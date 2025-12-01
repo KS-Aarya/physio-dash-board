@@ -1042,7 +1042,7 @@ export default function Reports() {
 						>
 							Total of {summary.total} registered patients in the system
 							<div className="absolute left-1/2 top-full transform -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-						</div>
+				</div>
 					)}
 				</div>
 				<div 
@@ -1067,7 +1067,7 @@ export default function Reports() {
 						>
 							{summary.pending} patients awaiting confirmation or scheduling
 							<div className="absolute left-1/2 top-full transform -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-						</div>
+				</div>
 					)}
 				</div>
 				<div 
@@ -1092,7 +1092,7 @@ export default function Reports() {
 						>
 							{summary.ongoing} patients currently in active treatment
 							<div className="absolute left-1/2 top-full transform -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-						</div>
+				</div>
 					)}
 				</div>
 				<div 
@@ -1203,107 +1203,107 @@ export default function Reports() {
 				{selectedPhysician && (
 					<>
 						<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-							{/* VIP Count */}
-							<div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-5 shadow-sm">
-								<div className="flex items-center justify-between">
-									<div>
-										<p className="text-xs font-semibold uppercase tracking-wide text-purple-600">
-											VIP Patients
-										</p>
-										<p className="mt-2 text-3xl font-bold text-purple-900">
-											{clinicianAnalytics.vipCount}
-										</p>
-									</div>
-									<div className="rounded-full bg-purple-200 p-3">
-										<i className="fas fa-crown text-xl text-purple-600" aria-hidden="true" />
-									</div>
+						{/* VIP Count */}
+						<div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-5 shadow-sm">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs font-semibold uppercase tracking-wide text-purple-600">
+										VIP Patients
+									</p>
+									<p className="mt-2 text-3xl font-bold text-purple-900">
+										{clinicianAnalytics.vipCount}
+									</p>
+								</div>
+								<div className="rounded-full bg-purple-200 p-3">
+									<i className="fas fa-crown text-xl text-purple-600" aria-hidden="true" />
 								</div>
 							</div>
+						</div>
 
-							{/* DYES Count */}
-							<div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-5 shadow-sm">
-								<div className="flex items-center justify-between">
-									<div>
-										<p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
-											DYES Patients
-										</p>
-										<p className="mt-2 text-3xl font-bold text-blue-900">
-											{clinicianAnalytics.dyesCount}
-										</p>
-									</div>
-									<div className="rounded-full bg-blue-200 p-3">
-										<i className="fas fa-users text-xl text-blue-600" aria-hidden="true" />
-									</div>
+						{/* DYES Count */}
+						<div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-5 shadow-sm">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+										DYES Patients
+									</p>
+									<p className="mt-2 text-3xl font-bold text-blue-900">
+										{clinicianAnalytics.dyesCount}
+									</p>
+								</div>
+								<div className="rounded-full bg-blue-200 p-3">
+									<i className="fas fa-users text-xl text-blue-600" aria-hidden="true" />
 								</div>
 							</div>
+						</div>
 
-							{/* Others Count */}
-							<div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-5 shadow-sm">
-								<div className="flex items-center justify-between">
-									<div>
-										<p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-											Other Patients
-										</p>
-										<p className="mt-2 text-3xl font-bold text-slate-900">
-											{clinicianAnalytics.othersCount}
-										</p>
-									</div>
-									<div className="rounded-full bg-slate-200 p-3">
-										<i className="fas fa-user-friends text-xl text-slate-600" aria-hidden="true" />
-									</div>
+						{/* Others Count */}
+						<div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-5 shadow-sm">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+										Other Patients
+									</p>
+									<p className="mt-2 text-3xl font-bold text-slate-900">
+										{clinicianAnalytics.othersCount}
+									</p>
+								</div>
+								<div className="rounded-full bg-slate-200 p-3">
+									<i className="fas fa-user-friends text-xl text-slate-600" aria-hidden="true" />
 								</div>
 							</div>
+						</div>
 
-							{/* Total Patients */}
-							<div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-5 shadow-sm">
-								<div className="flex items-center justify-between">
-									<div>
-										<p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-											Total Patients
-										</p>
-										<p className="mt-2 text-3xl font-bold text-emerald-900">
-											{clinicianAnalytics.totalPatients}
-										</p>
-									</div>
-									<div className="rounded-full bg-emerald-200 p-3">
-										<i className="fas fa-user-check text-xl text-emerald-600" aria-hidden="true" />
-									</div>
+						{/* Total Patients */}
+						<div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-5 shadow-sm">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+										Total Patients
+									</p>
+									<p className="mt-2 text-3xl font-bold text-emerald-900">
+										{clinicianAnalytics.totalPatients}
+									</p>
+								</div>
+								<div className="rounded-full bg-emerald-200 p-3">
+									<i className="fas fa-user-check text-xl text-emerald-600" aria-hidden="true" />
 								</div>
 							</div>
+						</div>
 
-							{/* Total Revenue */}
-							<div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 p-5 shadow-sm">
-								<div className="flex items-center justify-between">
-									<div>
-										<p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
-											Total Revenue
-										</p>
-										<p className="mt-2 text-2xl font-bold text-amber-900">
-											₹{clinicianAnalytics.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-										</p>
-									</div>
-									<div className="rounded-full bg-amber-200 p-3">
-										<i className="fas fa-rupee-sign text-xl text-amber-600" aria-hidden="true" />
-									</div>
+						{/* Total Revenue */}
+						<div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 p-5 shadow-sm">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+										Total Revenue
+									</p>
+									<p className="mt-2 text-2xl font-bold text-amber-900">
+										₹{clinicianAnalytics.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+									</p>
+								</div>
+								<div className="rounded-full bg-amber-200 p-3">
+									<i className="fas fa-rupee-sign text-xl text-amber-600" aria-hidden="true" />
 								</div>
 							</div>
+						</div>
 
 							{/* Total Hours */}
 							<div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100 p-5 shadow-sm">
 								<div className="flex items-center justify-between">
-									<div>
+				<div>
 										<p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
 											Total Hours
 										</p>
 										<p className="mt-2 text-3xl font-bold text-indigo-900">
 											{clinicianAnalytics.totalHours || 0}
 										</p>
-									</div>
+				</div>
 									<div className="rounded-full bg-indigo-200 p-3">
 										<i className="fas fa-clock text-xl text-indigo-600" aria-hidden="true" />
-									</div>
-								</div>
-							</div>
+				</div>
+				</div>
+				</div>
 						</div>
 
 						{/* Activities and Appointments Distribution Pie Chart */}
@@ -1319,7 +1319,7 @@ export default function Reports() {
 									/>
 								</div>
 							</div>
-						</div>
+				</div>
 					</>
 				)}
 
@@ -1327,7 +1327,7 @@ export default function Reports() {
 					<div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
 						<i className="fas fa-chart-line text-3xl text-slate-400 mb-3" aria-hidden="true" />
 						<p className="text-sm text-slate-600">Select a physician to view performance analytics</p>
-					</div>
+				</div>
 				)}
 			</section>
 
