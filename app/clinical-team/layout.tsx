@@ -10,14 +10,13 @@ import Availability from '@/components/clinical-team/Availability';
 import Appointments from '@/components/clinical-team/Appointments';
 import Notifications from '@/components/admin/Notifications';
 import Profile from '@/components/Profile';
-import Transfer from '@/components/clinical-team/Transfer';
-import SessionTransfer from '@/components/clinical-team/SessionTransfer';
+import TransferManagement from '@/components/clinical-team/TransferManagement';
 import MyPerformance from '@/components/clinical-team/MyPerformance';
 import InventoryManagement from '@/components/InventoryManagement';
 import LeaveManagement from '@/components/LeaveManagement';
 import { useAuth } from '@/contexts/AuthContext';
 
-type ClinicalTeamPage = 'dashboard' | 'calendar' | 'edit-report' | 'availability' | 'transfer' | 'session-transfer' | 'appointments' | 'notifications' | 'inventory' | 'leave' | 'profile' | 'my-performance';
+type ClinicalTeamPage = 'dashboard' | 'calendar' | 'edit-report' | 'availability' | 'transfer' | 'appointments' | 'notifications' | 'inventory' | 'leave' | 'profile' | 'my-performance';
 
 const clinicalTeamLinks: SidebarLink[] = [
 	{ href: '#dashboard', label: 'Dashboard', icon: 'fas fa-dumbbell' },
@@ -28,8 +27,7 @@ const clinicalTeamLinks: SidebarLink[] = [
 	{ href: '#leave', label: 'Leave Management', icon: 'fas fa-calendar-times' },
 	{ href: '#edit-report', label: 'View/Edit Reports', icon: 'fas fa-notes-medical' },
 	{ href: '#availability', label: 'My Availability', icon: 'fas fa-calendar-check' },
-	{ href: '#transfer', label: 'Transfer Patients', icon: 'fas fa-exchange-alt' },
-	{ href: '#session-transfer', label: 'Transfer Sessions', icon: 'fas fa-share-alt' },
+	{ href: '#transfer', label: 'Transfer Management', icon: 'fas fa-exchange-alt' },
 	{ href: '#my-performance', label: 'My Performance', icon: 'fas fa-chart-line' },
 ];
 
@@ -88,8 +86,6 @@ export default function ClinicalTeamLayout({ children }: { children: React.React
 			setActivePage('availability');
 		} else if (pathname?.includes('/transfer')) {
 			setActivePage('transfer');
-		} else if (pathname?.includes('/session-transfer')) {
-			setActivePage('session-transfer');
 		} else if (pathname?.includes('/profile')) {
 			setActivePage('profile');
 		} else if (pathname?.includes('/my-performance')) {
@@ -147,9 +143,7 @@ export default function ClinicalTeamLayout({ children }: { children: React.React
 			case 'availability':
 				return <Availability />;
 			case 'transfer':
-				return <Transfer />;
-			case 'session-transfer':
-				return <SessionTransfer />;
+				return <TransferManagement />;
 			case 'profile':
 				return <Profile />;
 			case 'my-performance':

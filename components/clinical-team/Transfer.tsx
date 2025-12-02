@@ -1203,15 +1203,10 @@ export default function Transfer() {
 	};
 
 	return (
-		<div className="min-h-svh bg-slate-50 px-6 py-10">
-			<div className="mx-auto max-w-6xl space-y-10">
-				<PageHeader
-					title="Transfer Patients"
-				/>
+		<div className="space-y-10">
+			<div className="border-t border-slate-200" />
 
-				<div className="border-t border-slate-200" />
-
-				{successMessage && (
+			{successMessage && (
 					<div className="alert-success">
 						<i className="fas fa-check-circle mr-2" aria-hidden="true" />
 						{successMessage}
@@ -1609,7 +1604,6 @@ export default function Transfer() {
 						</section>
 					)}
 				</div>
-			</div>
 
 			{/* Confirmation Dialog */}
 			<TransferConfirmationDialog

@@ -15,6 +15,7 @@ import AppointmentTemplates from '@/components/appointments/AppointmentTemplates
 import { normalizeSessionAllowance } from '@/lib/sessionAllowance';
 import { recordSessionUsageForAppointment } from '@/lib/sessionAllowanceClient';
 import type { RecordSessionUsageResult } from '@/lib/sessionAllowanceClient';
+import EditReportModal from '@/components/clinical-team/EditReportModal';
 
 interface FrontdeskAppointment {
 	id: string;
@@ -28,6 +29,10 @@ interface FrontdeskAppointment {
 	status: AdminAppointmentStatus;
 	createdAt: string;
 	notes?: string;
+	sessionNumber?: number;
+	totalSessions?: number;
+	packageBillingId?: string;
+	packageName?: string;
 }
 
 
@@ -65,6 +70,11 @@ type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'S
 type PatientRecordWithSessions = PatientRecord & {
 	totalSessionsRequired?: number;
 	remainingSessions?: number;
+	packageName?: string;
+	packageAmount?: number;
+	concessionPercent?: number;
+	paymentType?: string;
+	packageDescription?: string;
 };
 
 interface BookingForm {
@@ -150,6 +160,9 @@ export default function Appointments() {
 		description: '',
 	});
 	const [packageSubmitting, setPackageSubmitting] = useState(false);
+	const [showReportModal, setShowReportModal] = useState(false);
+	const [reportModalPatientId, setReportModalPatientId] = useState<string | null>(null);
+	const [packageAppointments, setPackageAppointments] = useState<Record<string, FrontdeskAppointment[]>>({});
 
 	// Load appointments from Firestore
 	useEffect(() => {
@@ -171,6 +184,10 @@ export default function Appointments() {
 						status: (data.status as AdminAppointmentStatus) ?? 'pending',
 						notes: data.notes ? String(data.notes) : undefined,
 						createdAt: created ? created.toISOString() : (data.createdAt as string | undefined) || new Date().toISOString(),
+						sessionNumber: typeof data.sessionNumber === 'number' ? data.sessionNumber : undefined,
+						totalSessions: typeof data.totalSessions === 'number' ? data.totalSessions : undefined,
+						packageBillingId: data.packageBillingId ? String(data.packageBillingId) : undefined,
+						packageName: data.packageName ? String(data.packageName) : undefined,
 					} as FrontdeskAppointment;
 				});
 				setAppointments(mapped);
@@ -532,6 +549,28 @@ export default function Appointments() {
 			return bDate - aDate;
 		});
 	}, [appointments, searchTerm, showAllAppointments, clinicianName]);
+
+	// Group package appointments by patient
+	const packageAppointmentsByPatient = useMemo(() => {
+		const grouped: Record<string, FrontdeskAppointment[]> = {};
+		appointments.forEach(apt => {
+			if (apt.packageBillingId && apt.patientId) {
+				if (!grouped[apt.patientId]) {
+					grouped[apt.patientId] = [];
+				}
+				grouped[apt.patientId].push(apt);
+			}
+		});
+		// Sort by session number
+		Object.keys(grouped).forEach(patientId => {
+			grouped[patientId].sort((a, b) => {
+				const aNum = a.sessionNumber || 0;
+				const bNum = b.sessionNumber || 0;
+				return aNum - bNum;
+			});
+		});
+		return grouped;
+	}, [appointments]);
 
 	// Get appointments for selected patient
 	const selectedPatientAppointments = useMemo(() => {
@@ -1456,6 +1495,32 @@ export default function Appointments() {
 													<p className="text-sm font-semibold text-slate-900">
 														{group.appointments.length} appointment{group.appointments.length === 1 ? '' : 's'}
 													</p>
+													{patientDetails?.packageName && patientDetails?.totalSessionsRequired && (
+														<div className="mt-2 space-y-1">
+															<p className="text-xs text-purple-600 font-medium">
+																Package: {patientDetails.packageName} ({patientDetails.totalSessionsRequired} sessions)
+															</p>
+															{packageAppointmentsByPatient[group.patientId] && packageAppointmentsByPatient[group.patientId].length > 0 && (
+																<div className="flex flex-wrap gap-1 mt-1">
+																	{packageAppointmentsByPatient[group.patientId].map((apt, idx) => (
+																		<button
+																			key={apt.id}
+																			type="button"
+																			onClick={() => {
+																				setReportModalPatientId(group.patientId);
+																				setShowReportModal(true);
+																			}}
+																			className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-blue-500 to-blue-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:from-blue-600 hover:to-blue-700 transition-all"
+																			title={`Session ${apt.sessionNumber || idx + 1}${apt.date ? ` - ${formatDateLabel(apt.date)}` : ' - Not scheduled'}`}
+																		>
+																			<i className="fas fa-file-medical text-xs" aria-hidden="true" />
+																			Session {apt.sessionNumber || idx + 1}
+																		</button>
+																	))}
+																</div>
+															)}
+														</div>
+													)}
 												</td>
 												<td className="px-4 py-4 text-sm text-slate-600">
 													{nextAppointment ? (
@@ -2424,6 +2489,20 @@ export default function Appointments() {
 						</footer>
 					</div>
 				</div>
+			)}
+
+			{/* Report Modal */}
+			{showReportModal && reportModalPatientId && (
+				<EditReportModal
+					isOpen={showReportModal}
+					patientId={reportModalPatientId}
+					initialTab="report"
+					onClose={() => {
+						setShowReportModal(false);
+						setReportModalPatientId(null);
+					}}
+					editable={true}
+				/>
 			)}
 
 		</div>

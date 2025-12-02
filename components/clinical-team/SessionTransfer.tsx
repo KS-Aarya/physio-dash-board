@@ -603,11 +603,8 @@ export default function SessionTransfer() {
 	}
 
 	return (
-		<div className="min-h-svh bg-slate-50 px-6 py-10">
-			<div className="mx-auto max-w-6xl space-y-6">
-				<PageHeader
-					title="Transfer Sessions"
-				/>
+		<div className="space-y-6">
+				{/* PageHeader removed - handled by parent TransferManagement */}
 
 				{successMessage && (
 					<div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
@@ -933,7 +930,6 @@ export default function SessionTransfer() {
 						</div>
 					</div>
 				)}
-			</div>
 		</div>
 	);
 }
