@@ -16,6 +16,7 @@ import Notifications from '@/components/admin/Notifications';
 import Profile from '@/components/Profile';
 import InventoryManagement from '@/components/InventoryManagement';
 import LeaveManagement from '@/components/LeaveManagement';
+import AdminLeaveManagement from '@/components/admin/LeaveManagement';
 import { useAuth } from '@/contexts/AuthContext';
 
 type AdminPage = 'dashboard' | 'users' | 'patients' | 'appointments' | 'billing' | 'analytics' | 'calendar' | 'calendar-appointments' | 'audit' | 'seed' | 'headers' | 'notifications' | 'inventory' | 'leave' | 'profile';
@@ -98,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 		case 'inventory':
 			return <InventoryManagement />;
 		case 'leave':
-			return <LeaveManagement />;
+			return <AdminLeaveManagement />;
 		case 'profile':
 			return <Profile />;
 		default:
