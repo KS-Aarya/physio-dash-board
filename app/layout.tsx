@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import FullCalendarStyles from "@/components/FullCalendarStyles";
-import BugReportButton from "@/components/BugReportButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +31,6 @@ export default function RootLayout({
       >
         <FullCalendarStyles />
         <Providers>{children}</Providers>
-        <BugReportButton />
       </body>
     </html>
   );
