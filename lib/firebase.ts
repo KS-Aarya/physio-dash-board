@@ -1,7 +1,7 @@
 import { getAnalytics } from 'firebase/analytics';
 import { getApps, initializeApp, type FirebaseOptions } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 
 type FirebaseConfigKey =
 	| 'API_KEY'
@@ -102,7 +102,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Initialize Auth - ensure it's initialized with the correct app
-let auth;
+let auth: Auth;
 try {
 	auth = getAuth(app);
 	if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -127,7 +127,7 @@ try {
 }
 
 // Initialize Firestore with default database
-let db;
+let db: Firestore;
 try {
 	db = DATABASE_ID ? getFirestore(app, DATABASE_ID) : getFirestore(app);
 	if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
