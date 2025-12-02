@@ -1134,6 +1134,11 @@ export default function Appointments() {
 													<p className="text-xs text-slate-500">
 														<span className="font-semibold text-slate-600">ID:</span> {group.patientId}
 													</p>
+													{patientDetails?.patientType && (
+														<p className="text-xs text-slate-500">
+															<span className="font-semibold text-slate-600">Type:</span> {patientDetails.patientType}
+														</p>
+													)}
 													<p className="text-xs text-slate-500">
 														{patientDetails?.phone ? `Phone: ${patientDetails.phone}` : 'Phone not provided'}
 													</p>

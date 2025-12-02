@@ -16,6 +16,7 @@ import { sendEmailNotification } from '@/lib/email';
 import { sendSMSNotification, isValidPhoneNumber } from '@/lib/sms';
 import { checkAppointmentConflict } from '@/lib/appointmentUtils';
 import { createInitialSessionAllowance } from '@/lib/sessionAllowance';
+import { updateCycleTotalForDate } from '@/lib/billingUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import ReportModal from '@/components/frontdesk/ReportModal';
 
@@ -1107,6 +1108,7 @@ export default function Patients() {
 					? Number((packageAmountValue * (1 - concessionPercentValue / 100)).toFixed(2))
 					: packageAmountValue;
 
+			const billingDate = new Date().toISOString().split('T')[0];
 			await addDoc(collection(db, 'billing'), {
 				billingId,
 				patient: packageModalPatient.name,
@@ -1115,13 +1117,16 @@ export default function Patients() {
 				packageAmount: packageAmountValue,
 				concessionPercent: concessionPercentValue,
 				amountPaid: 0,
-				date: new Date().toISOString().split('T')[0],
+				date: billingDate,
 				status: 'Pending',
 				paymentMode: null,
 				utr: null,
 				createdAt: serverTimestamp(),
 				updatedAt: serverTimestamp(),
 			});
+			
+			// Update cycle total
+			await updateCycleTotalForDate(db, billingDate);
 
 			setPatients(prev =>
 				prev.map(p =>
@@ -1635,6 +1640,9 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 					createdAt: serverTimestamp(),
 					updatedAt: serverTimestamp(),
 				});
+				
+				// Update cycle total
+				await updateCycleTotalForDate(db, bookingForm.date);
 			} catch (billingError) {
 				console.error('Failed to create booking charge', billingError);
 			}
@@ -2235,10 +2243,10 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 									<tr>
 										<th className="px-4 py-3 font-semibold">Patient ID</th>
 										<th className="px-4 py-3 font-semibold">Name</th>
-										<th className="px-4 py-3 font-semibold">Type</th>
+										<th className="px-4 py-3 font-semibold">Type of Organization</th>
 										<th className="px-4 py-3 font-semibold">Therapist</th>
 										<th className="px-4 py-3 font-semibold">Registered</th>
-										<th className="px-4 py-3 font-semibold text-right">Actions</th>
+										<th className="px-4 py-3 font-semibold text-right min-w-[400px]">Actions</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-slate-100">
@@ -2273,11 +2281,11 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 											<td className="px-4 py-4 text-sm text-slate-600">{patient.assignedDoctor || '—'}</td>
 											<td className="px-4 py-4 text-xs text-slate-500">{formatDateLabel(patient.registeredAt)}</td>
 											<td className="px-4 py-4 text-right">
-												<div className="flex items-center justify-end gap-2" data-patient-actions>
+												<div className="flex flex-wrap items-center justify-end gap-1.5 min-w-[400px]" data-patient-actions>
 													<button
 														type="button"
 														onClick={() => handleBookFirstAppointment(patient.patientId)}
-														className={bookingButtonClasses}
+														className={`${bookingButtonClasses} whitespace-nowrap flex-shrink-0`}
 														disabled={!canBook || (!!pendingConsultationBill && !isDyesPatient)}
 													>
 														<i className="fas fa-calendar-plus text-[10px]" aria-hidden="true" />
@@ -2287,7 +2295,7 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 														<button
 															type="button"
 															onClick={() => handlePayConsultation(patient)}
-															className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 focus-visible:border-amber-300 focus-visible:bg-amber-100 focus-visible:outline-none"
+															className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 focus-visible:border-amber-300 focus-visible:bg-amber-100 focus-visible:outline-none whitespace-nowrap flex-shrink-0"
 														>
 															<i className="fas fa-money-bill-wave text-[10px]" aria-hidden="true" />
 															Pay
@@ -2297,14 +2305,14 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 														<button
 															type="button"
 															onClick={() => handlePayPackage(patient)}
-															className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 transition hover:border-purple-300 hover:bg-purple-100 focus-visible:border-purple-300 focus-visible:bg-purple-100 focus-visible:outline-none"
+															className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 transition hover:border-purple-300 hover:bg-purple-100 focus-visible:border-purple-300 focus-visible:bg-purple-100 focus-visible:outline-none whitespace-nowrap flex-shrink-0"
 														>
 															<i className="fas fa-money-bill-wave text-[10px]" aria-hidden="true" />
 															Pay Package
 														</button>
 													)}
 													{paidPackageBill && (
-														<span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+														<span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 whitespace-nowrap flex-shrink-0">
 															<i className="fas fa-check-circle text-[10px]" aria-hidden="true" />
 															Paid
 														</span>
@@ -2312,73 +2320,36 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 													<button
 														type="button"
 														onClick={() => handleOpenReportModal(patient.patientId, 'report')}
-														className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 focus-visible:border-slate-300 focus-visible:bg-slate-100 focus-visible:outline-none"
+														className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 focus-visible:border-slate-300 focus-visible:bg-slate-100 focus-visible:outline-none whitespace-nowrap flex-shrink-0"
 													>
 														<i className="fas fa-file-medical text-[10px]" aria-hidden="true" />
 														Report
 													</button>
-													<div className="relative">
-														<button
-															type="button"
-															onClick={event => {
-																event.stopPropagation();
-																setOpenMenuId(current => (current === patient.id ? null : patient.id ?? null));
-															}}
-															className="inline-flex items-center justify-center rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700 focus-visible:border-sky-300 focus-visible:text-slate-700 focus-visible:outline-none"
-															aria-haspopup="menu"
-															aria-expanded={openMenuId === patient.id}
-															aria-label="More actions"
-														>
-															<svg
-																xmlns="http://www.w3.org/2000/svg"
-																viewBox="0 0 20 20"
-																fill="currentColor"
-																className="h-4 w-4"
-															>
-																<path d="M6 10a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm5.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM17 10a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
-															</svg>
-														</button>
-														{openMenuId === patient.id && (
-															<div className="absolute right-0 z-20 mt-2 w-44 rounded-lg border border-slate-200 bg-white py-2 text-left text-sm shadow-lg">
-																<button
-																	type="button"
-																	onClick={event => {
-																		event.stopPropagation();
-																		handleViewPatientDetails(patient);
-																	}}
-																	className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-																>
-																	<i className="fas fa-eye text-xs" aria-hidden="true" />
-																	View all data
-																</button>
-																<button
-																	type="button"
-																	onClick={event => {
-																		event.stopPropagation();
-																		setOpenMenuId(null);
-																		openDialogForEdit(patient.id!);
-																	}}
-																	className="flex w-full items-center gap-2 px-4 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-																>
-																	<i className="fas fa-edit text-xs" aria-hidden="true" />
-																	Edit
-																</button>
-																<button
-																	type="button"
-																	onClick={event => {
-																		event.stopPropagation();
-																		setOpenMenuId(null);
-																		handleDeleteClick(patient.id!);
-																	}}
-																	disabled={deletingId === patient.id}
-																	className="flex w-full items-center gap-2 px-4 py-2 text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-																>
-																	<i className="fas fa-trash text-xs" aria-hidden="true" />
-																	{deletingId === patient.id ? 'Deleting…' : 'Delete'}
-																</button>
-															</div>
-														)}
-													</div>
+													<button
+														type="button"
+														onClick={() => handleViewPatientDetails(patient)}
+														className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 focus-visible:border-sky-300 focus-visible:bg-sky-100 focus-visible:outline-none whitespace-nowrap flex-shrink-0"
+													>
+														<i className="fas fa-eye text-[10px]" aria-hidden="true" />
+														View
+													</button>
+													<button
+														type="button"
+														onClick={() => openDialogForEdit(patient.id!)}
+														className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 focus-visible:border-blue-300 focus-visible:bg-blue-100 focus-visible:outline-none whitespace-nowrap flex-shrink-0"
+													>
+														<i className="fas fa-edit text-[10px]" aria-hidden="true" />
+														Edit
+													</button>
+													<button
+														type="button"
+														onClick={() => handleDeleteClick(patient.id!)}
+														disabled={deletingId === patient.id}
+														className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 focus-visible:border-rose-300 focus-visible:bg-rose-100 focus-visible:outline-none whitespace-nowrap flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+													>
+														<i className="fas fa-trash text-[10px]" aria-hidden="true" />
+														{deletingId === patient.id ? 'Deleting…' : 'Delete'}
+													</button>
 												</div>
 											</td>
 										</tr>

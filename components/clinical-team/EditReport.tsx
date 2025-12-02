@@ -10,6 +10,7 @@ import type { AdminGenderOption, AdminPatientStatus } from '@/lib/adminMockData'
 import { generatePhysiotherapyReportPDF, type PatientReportData, type ReportSection } from '@/lib/pdfGenerator';
 import type { PatientRecordFull } from '@/lib/types';
 import { recordSessionUsageForAppointment } from '@/lib/sessionAllowanceClient';
+import { updateCycleTotalForDate } from '@/lib/billingUtils';
 import { getHeaderConfig, getDefaultHeaderConfig } from '@/lib/headerConfig';
 import type { HeaderConfig } from '@/components/admin/HeaderManagement';
 import EditReportModal from '@/components/clinical-team/EditReportModal';
@@ -2019,6 +2020,7 @@ export default function EditReport() {
 					? Number((packageAmountValue * (1 - concessionPercentValue / 100)).toFixed(2))
 					: packageAmountValue;
 
+			const billingDate = new Date().toISOString().split('T')[0];
 			await addDoc(collection(db, 'billing'), {
 				billingId,
 				patient: packageModalPatient.name,
@@ -2027,13 +2029,16 @@ export default function EditReport() {
 				packageAmount: packageAmountValue,
 				concessionPercent: concessionPercentValue,
 				amountPaid: 0,
-				date: new Date().toISOString().split('T')[0],
+				date: billingDate,
 				status: 'Pending',
 				paymentMode: null,
 				utr: null,
 				createdAt: serverTimestamp(),
 				updatedAt: serverTimestamp(),
 			});
+			
+			// Update cycle total
+			await updateCycleTotalForDate(db, billingDate);
 
 			// Get package category from selected package
 			const allPackages = [...PROFESSIONAL_PACKAGES, ...STUDENT_PACKAGES];

@@ -700,6 +700,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 												<th className="px-3 py-2 font-semibold">#</th>
 												<th className="px-3 py-2 font-semibold">Patient ID</th>
 												<th className="px-3 py-2 font-semibold">Name</th>
+												<th className="px-3 py-2 font-semibold">Type of Organization</th>
 												<th className="px-3 py-2 font-semibold">Status</th>
 												<th className="px-3 py-2 font-semibold">Assigned Clinician</th>
 												<th className="px-3 py-2 font-semibold">Phone</th>
@@ -723,6 +724,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 															{patient.patientId || '—'}
 														</td>
 														<td className="px-3 py-3 text-sm text-slate-700">{patient.name || '—'}</td>
+														<td className="px-3 py-3 text-sm text-slate-600">{patient.patientType || '—'}</td>
 														<td className="px-3 py-3">
 															<span
 																className={`badge-base px-3 py-1 ${badgeClass}`}

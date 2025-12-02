@@ -1405,7 +1405,7 @@ export default function Patients() {
 											<th className="w-10 px-2 py-3 font-semibold">#</th>
 											<th className="w-32 px-2 py-3 font-semibold">Patient ID</th>
 											<th className="w-28 px-2 py-3 font-semibold">Name</th>
-											<th className="w-24 px-2 py-3 font-semibold">Department</th>
+											<th className="w-24 px-2 py-3 font-semibold">Type of Organization</th>
 											<th className="w-20 px-2 py-3 font-semibold">Gender</th>
 											<th className="w-28 px-2 py-3 font-semibold">Phone</th>
 											<th className="w-32 px-2 py-3 font-semibold">Assigned Therapist</th>
