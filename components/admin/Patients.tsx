@@ -29,6 +29,8 @@ import { db } from '@/lib/firebase';
 import PageHeader from '@/components/PageHeader';
 import { sendSMSNotification, isValidPhoneNumber } from '@/lib/sms';
 import { sendEmailNotification } from '@/lib/email';
+import { useAuth } from '@/contexts/AuthContext';
+import { notifyAdmins } from '@/lib/notificationUtils';
 import ReportModal from '@/components/frontdesk/ReportModal';
 
 const genderOptions: Array<{ value: AdminGenderOption; label: string }> = [
@@ -151,6 +153,7 @@ interface PatientExtras {
 }
 
 export default function Patients() {
+	const { user } = useAuth();
 	const [patients, setPatients] = useState<AdminPatientRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [searchTerm, setSearchTerm] = useState('');
@@ -802,6 +805,20 @@ export default function Patients() {
 				status: 'cancelled',
 			});
 
+			// Notify other admins about patient deletion
+			await notifyAdmins(
+				'Patient Deleted',
+				`${user?.displayName || user?.email || 'Admin'} deleted patient: ${patient.name} (ID: ${patient.patientId})`,
+				'patient_deleted',
+				{
+					patientId: patient.patientId,
+					patientName: patient.name,
+					deletedBy: user?.uid || '',
+					deletedByName: user?.displayName || user?.email || 'Unknown',
+				},
+				user?.uid
+			);
+
 			// Show success message
 			const appointmentCount = appointmentsSnapshot.docs.length;
 			const appointmentText = appointmentCount === 1 ? 'appointment' : 'appointments';
@@ -866,10 +883,38 @@ export default function Patients() {
 				// Update existing patient
 				await updateDoc(doc(db, 'patients', editingId), patientData);
 				console.log('Patient updated successfully');
+				
+				// Notify other admins about patient update
+				await notifyAdmins(
+					'Patient Updated',
+					`${user?.displayName || user?.email || 'Admin'} updated patient: ${trimmedName} (ID: ${trimmedId})`,
+					'patient_updated',
+					{
+						patientId: trimmedId,
+						patientName: trimmedName,
+						updatedBy: user?.uid || '',
+						updatedByName: user?.displayName || user?.email || 'Unknown',
+					},
+					user?.uid
+				);
 			} else {
 				// Create new patient
 				const docRef = await addDoc(collection(db, 'patients'), patientData);
 				console.log('Patient created successfully with document ID:', docRef.id);
+				
+				// Notify other admins about new patient
+				await notifyAdmins(
+					'New Patient Registered',
+					`${user?.displayName || user?.email || 'Admin'} registered a new patient: ${trimmedName} (ID: ${trimmedId})`,
+					'patient_created',
+					{
+						patientId: trimmedId,
+						patientName: trimmedName,
+						createdBy: user?.uid || '',
+						createdByName: user?.displayName || user?.email || 'Unknown',
+					},
+					user?.uid
+				);
 
 				// Send registration email if email is provided
 				let emailSent = false;
@@ -1405,7 +1450,7 @@ export default function Patients() {
 											<th className="w-10 px-2 py-3 font-semibold">#</th>
 											<th className="w-32 px-2 py-3 font-semibold">Patient ID</th>
 											<th className="w-28 px-2 py-3 font-semibold">Name</th>
-											<th className="w-24 px-2 py-3 font-semibold">Type of Organization</th>
+											<th className="w-24 px-2 py-3 font-semibold">Department</th>
 											<th className="w-20 px-2 py-3 font-semibold">Gender</th>
 											<th className="w-28 px-2 py-3 font-semibold">Phone</th>
 											<th className="w-32 px-2 py-3 font-semibold">Assigned Therapist</th>

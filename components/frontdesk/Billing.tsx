@@ -34,7 +34,6 @@ interface BillingRecord {
 	patientId: string;
 	doctor?: string;
 	amount: number;
-	amountPaid?: number;
 	date: string;
 	status: 'Pending' | 'Completed';
 	paymentMode?: string;
@@ -783,7 +782,6 @@ export default function Billing() {
 						patientId: data.patientId ? String(data.patientId) : '',
 						doctor: data.doctor ? String(data.doctor) : undefined,
 						amount: data.amount ? Number(data.amount) : 0,
-						amountPaid: data.amountPaid !== undefined && data.amountPaid !== null ? Number(data.amountPaid) : undefined,
 						date: data.date ? String(data.date) : '',
 						status: (data.status as 'Pending' | 'Completed') || 'Pending',
 						paymentMode: data.paymentMode ? String(data.paymentMode) : undefined,
@@ -1014,45 +1012,13 @@ export default function Billing() {
 		const completedCount = cycleBills.filter(b => b.status === 'Completed').length;
 		const collections = cycleBills
 			.filter(b => b.status === 'Completed')
-			.reduce((sum, bill) => {
-				// For installment payments, use amountPaid if available, otherwise use full amount
-				const amount = bill.amountPaid !== undefined && bill.amountPaid !== null
-					? Number(bill.amountPaid)
-					: Number(bill.amount || 0);
-				return sum + (Number.isFinite(amount) ? amount : 0);
-			}, 0);
+			.reduce((sum, bill) => sum + (bill.amount || 0), 0);
 
 		return {
 			pending: pendingCount,
 			completed: completedCount,
 			collections,
-			cycleBills, // Export cycleBills for use in tables
 		};
-	}, [selectedCycleId, currentCycle, billingCycles, billing]);
-
-	// Completed payments filtered by selected cycle (for cycle reports)
-	const cycleCompleted = useMemo(() => {
-		let selectedCycle: BillingCycle | CycleRange | null = null;
-
-		if (selectedCycleId === 'current') {
-			selectedCycle = currentCycle;
-		} else {
-			selectedCycle = billingCycles.find(c => c.id === selectedCycleId) || null;
-		}
-
-		if (!selectedCycle) {
-			return [];
-		}
-
-		const startDate = new Date(selectedCycle.startDate);
-		const endDate = new Date(selectedCycle.endDate);
-		endDate.setHours(23, 59, 59, 999); // Include the entire end date
-
-		return billing
-			.filter(bill => {
-				const billDate = new Date(bill.date);
-				return billDate >= startDate && billDate <= endDate && bill.status === 'Completed';
-			});
 	}, [selectedCycleId, currentCycle, billingCycles, billing]);
 
 	const handlePay = (bill: BillingRecord) => {
@@ -1651,10 +1617,7 @@ export default function Billing() {
 																{bill.billingId}
 															</td>
 															<td className="px-3 py-3 text-sm text-slate-600">
-																<div>{bill.patient}</div>
-																{patientType && (
-																	<p className="mt-0.5 text-xs font-medium text-slate-500">Type: {patientType}</p>
-																)}
+																{bill.patient}
 															</td>
 															<td className="px-3 py-3 text-sm font-semibold text-slate-900">
 																Rs. {bill.amount}
@@ -1698,12 +1661,12 @@ export default function Billing() {
 									<h2 className="text-lg font-semibold text-slate-900">
 										Completed Payments{' '}
 										<span className="ml-2 rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white">
-											{cycleCompleted.length}
+											{completed.length}
 										</span>
 									</h2>
 								</div>
 								<div className="p-6">
-									{cycleCompleted.length === 0 ? (
+									{completed.length === 0 ? (
 										<p className="py-8 text-center text-sm text-slate-500">
 											No completed payments.
 										</p>
@@ -1720,22 +1683,16 @@ export default function Billing() {
 													</tr>
 												</thead>
 												<tbody className="divide-y divide-slate-100">
-													{cycleCompleted.map(bill => (
+													{completed.map(bill => (
 														<tr key={bill.billingId}>
 															<td className="px-3 py-3 text-sm font-medium text-slate-800">
 																{bill.billingId}
 															</td>
 															<td className="px-3 py-3 text-sm text-slate-600">
-																<div>{bill.patient}</div>
-																{(() => {
-																	const patientType = patients.find(p => p.patientId === bill.patientId)?.patientType;
-																	return patientType ? (
-																		<p className="mt-0.5 text-xs font-medium text-slate-500">Type: {patientType}</p>
-																	) : null;
-																})()}
+																{bill.patient}
 															</td>
 															<td className="px-3 py-3 text-sm font-semibold text-slate-900">
-																Rs. {bill.amountPaid !== undefined && bill.amountPaid !== null ? bill.amountPaid : bill.amount}
+																Rs. {bill.amount}
 															</td>
 															<td className="px-3 py-3 text-sm text-slate-600">
 																{bill.paymentMode || '--'}

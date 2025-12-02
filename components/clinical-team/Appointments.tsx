@@ -387,7 +387,7 @@ export default function Appointments() {
 				staff: selectedStaff.userName,
 				enabled: dayAvailability.enabled,
 				slots: dayAvailability.slots,
-				bookedSlots: bookedSlots,
+				slotPatientCounts: Object.fromEntries(slotPatientCounts),
 			});
 		}
 
