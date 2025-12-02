@@ -1220,6 +1220,29 @@ export default function Appointments() {
 				updatedAt: serverTimestamp(),
 			});
 
+			// Create appointments equal to the number of sessions in the package
+			const createdAppointmentIds: string[] = [];
+			for (let i = 1; i <= totalSessionsValue; i++) {
+				const appointmentId = `APT-${selectedPatient.patientId}-${Date.now()}-${i}`;
+				await addDoc(collection(db, 'appointments'), {
+					appointmentId,
+					patientId: selectedPatient.patientId,
+					patient: selectedPatient.name,
+					doctor: '', // Will be assigned when appointment is scheduled
+					date: '', // Will be scheduled later
+					time: '', // Will be scheduled later
+					status: 'pending' as AdminAppointmentStatus,
+					notes: null,
+					isConsultation: false,
+					sessionNumber: i,
+					totalSessions: totalSessionsValue,
+					packageBillingId: billingId,
+					packageName: packageForm.packageName.trim(),
+					createdAt: serverTimestamp(),
+				});
+				createdAppointmentIds.push(appointmentId);
+			}
+
 			// Update patient's totalSessionsRequired and remainingSessions
 			const patientRef = doc(db, 'patients', selectedPatient.id);
 			const currentTotalSessions = typeof selectedPatient.totalSessionsRequired === 'number'
@@ -1270,7 +1293,7 @@ export default function Appointments() {
 				description: '',
 			});
 
-			alert(`Package "${packageForm.packageName}" added successfully! Billing entry created with status Pending.`);
+			alert(`Package "${packageForm.packageName}" added successfully! Billing entry created with status Pending. ${totalSessionsValue} appointment${totalSessionsValue > 1 ? 's' : ''} created. You can schedule them and add reports for each appointment.`);
 		} catch (error) {
 			console.error('Failed to add package', error);
 			alert(`Failed to add package: ${error instanceof Error ? error.message : 'Unknown error'}`);
