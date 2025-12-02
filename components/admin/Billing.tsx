@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PageHeader from '@/components/PageHeader';
 import { sendEmailNotification } from '@/lib/email';
 import { sendSMSNotification, isValidPhoneNumber } from '@/lib/sms';
+import { notifyAdmins } from '@/lib/notificationUtils';
 import { getCurrentBillingCycle, getNextBillingCycle, getBillingCycleId, getMonthName, type BillingCycle } from '@/lib/billingUtils';
 import { getRemainingFreeSessions, normalizeSessionAllowance } from '@/lib/sessionAllowance';
 import { recordSessionUsageForAppointment } from '@/lib/sessionAllowanceClient';
@@ -1368,6 +1369,22 @@ export default function Billing() {
 				});
 			}
 
+			// Notify other admins about billing record update
+			await notifyAdmins(
+				'Billing Record Updated',
+				`${user?.displayName || user?.email || 'Admin'} ${billingSnapshot.empty ? 'created' : 'updated'} billing record for ${appointment.patient || 'patient'}`,
+				'billing_updated',
+				{
+					billingId: billingSnapshot.empty ? 'BILL-' + (appointment.appointmentId || Date.now().toString()) : billingSnapshot.docs[0].id,
+					patientId: appointment.patientId || '',
+					patientName: appointment.patient || '',
+					amount: amountValue,
+					updatedBy: user?.uid || '',
+					updatedByName: user?.displayName || user?.email || 'Unknown',
+				},
+				user?.uid
+			);
+
 			// Send notifications only if status changed from non-completed to completed
 			if (!wasAlreadyCompleted) {
 				if (patient?.id) {
@@ -1680,6 +1697,42 @@ export default function Billing() {
 				}
 			}
 
+			// Notify other admins about payment completion
+			if (newStatus === 'Completed') {
+				await notifyAdmins(
+					'Payment Completed',
+					`${user?.displayName || user?.email || 'Admin'} marked payment as completed for ${selectedBill.patient}`,
+					'payment_completed',
+					{
+						billingId: selectedBill.billingId,
+						patientId: selectedBill.patientId,
+						patientName: selectedBill.patient,
+						amount: newAmountPaid,
+						completedBy: user?.uid || '',
+						completedByName: user?.displayName || user?.email || 'Unknown',
+					},
+					user?.uid
+				);
+			}
+
+			// Notify other admins about payment completion
+			if (newStatus === 'Completed') {
+				await notifyAdmins(
+					'Payment Completed',
+					`${user?.displayName || user?.email || 'Admin'} marked payment as completed for ${selectedBill.patient}`,
+					'payment_completed',
+					{
+						billingId: selectedBill.billingId,
+						patientId: selectedBill.patientId,
+						patientName: selectedBill.patient,
+						amount: newAmountPaid,
+						completedBy: user?.uid || '',
+						completedByName: user?.displayName || user?.email || 'Unknown',
+					},
+					user?.uid
+				);
+			}
+
 			handleClosePayModal();
 		} catch (error) {
 			console.error('Failed to update payment', error);
@@ -1959,7 +2012,6 @@ export default function Billing() {
 		if (Number.isNaN(d.getTime())) return false;
 		const start = new Date(cycle.startDate);
 		const end = new Date(cycle.endDate);
-		end.setHours(23, 59, 59, 999); // Include the entire end date
 		return d >= start && d <= end;
 	};
 
@@ -1986,19 +2038,15 @@ export default function Billing() {
 		// Use billing collection for cycle summary
 		for (const bill of billing) {
 			const billDate = bill.date;
+			const billAmount = Number(bill.amount ?? 0);
 			if (billDate && isWithinCycle(billDate, cycle)) {
 				if (bill.status === 'Pending') {
 					pendingCount += 1;
 				} else if (bill.status === 'Completed') {
 					completedCount += 1;
-					// For installment payments, use amountPaid if available, otherwise use full amount
-					const billAmount = bill.amountPaid !== undefined && bill.amountPaid !== null
-						? Number(bill.amountPaid)
-						: Number(bill.amount ?? 0);
-					const amountToAdd = Number.isFinite(billAmount) ? billAmount : 0;
-					collectedAmount += amountToAdd;
+					collectedAmount += Number.isFinite(billAmount) ? billAmount : 0;
 					const key = bill.doctor || 'Unassigned';
-					byClinicianMap.set(key, (byClinicianMap.get(key) || 0) + amountToAdd);
+					byClinicianMap.set(key, (byClinicianMap.get(key) || 0) + (Number.isFinite(billAmount) ? billAmount : 0));
 				}
 			}
 		}
@@ -2025,22 +2073,6 @@ export default function Billing() {
 				return patient?.department === departmentFilter;
 			});
 	}, [billing, departmentFilter, patientLookup]);
-
-	// Completed payments filtered by selected cycle (for cycle reports)
-	const cycleCompleted = useMemo(() => {
-		const cycle = selectedCycle;
-		if (!cycle) return [];
-		
-		return billing
-			.filter(b => b.status === 'Completed')
-			.filter(bill => {
-				const billDate = bill.date;
-				if (!billDate || !isWithinCycle(billDate, cycle)) return false;
-				if (departmentFilter === 'all') return true;
-				const patient = bill.patientId ? patientLookup.get(bill.patientId) : undefined;
-				return patient?.department === departmentFilter;
-			});
-	}, [billing, selectedCycle, departmentFilter, patientLookup]);
 
 	return (
 		<div className="min-h-svh bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 px-6 py-10">
@@ -2273,9 +2305,6 @@ export default function Billing() {
 											<tr key={row.appointment.id}>
 												<td className="px-3 py-3 font-medium text-slate-800">
 													<div>{row.patientName}</div>
-													{row.patientRecord?.patientType && (
-														<p className="mt-0.5 text-xs font-medium text-slate-600">Type: {row.patientRecord.patientType}</p>
-													)}
 													{row.patientRecord?.department && (
 														<p className="mt-0.5 text-xs text-indigo-600 font-medium">{row.patientRecord.department}</p>
 													)}
@@ -2367,9 +2396,6 @@ export default function Billing() {
 										<tr key={row.appointment.id}>
 											<td className="px-3 py-3 font-medium text-slate-800">
 												<div>{row.patientName}</div>
-												{row.patientRecord?.patientType && (
-													<p className="mt-0.5 text-xs font-medium text-slate-600">Type: {row.patientRecord.patientType}</p>
-												)}
 												{row.patientRecord?.department && (
 													<p className="mt-0.5 text-xs text-indigo-600 font-medium">{row.patientRecord.department}</p>
 												)}
@@ -2679,7 +2705,7 @@ export default function Billing() {
 							</p>
 						</div>
 						<span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-navy-600 px-2 text-xs font-semibold text-white shadow-md">
-							{cycleCompleted.length}
+							{completed.length}
 						</span>
 					</header>
 					<div className="overflow-x-auto px-5 pb-5 pt-3">
@@ -2698,29 +2724,26 @@ export default function Billing() {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-emerald-100">
-								{cycleCompleted.length === 0 ? (
+								{completed.length === 0 ? (
 									<tr>
 										<td colSpan={9} className="px-3 py-6 text-center text-sm text-slate-500">
 											No completed payments.
 										</td>
 									</tr>
 								) : (
-									cycleCompleted.map(bill => {
+									completed.map(bill => {
 										const patient = bill.patientId ? patientLookup.get(bill.patientId) : undefined;
 										return (
 										<tr key={bill.id}>
 												<td className="px-3 py-3 font-medium text-slate-800">
 													<div>{bill.patient}</div>
-													{patient?.patientType && (
-														<p className="mt-0.5 text-xs font-medium text-slate-600">Type: {patient.patientType}</p>
-													)}
 													{patient?.department && (
 														<p className="mt-0.5 text-xs text-indigo-600 font-medium">{patient.department}</p>
 													)}
 												</td>
 											<td className="px-3 py-3 text-slate-600">{bill.patientId}</td>
 											<td className="px-3 py-3 text-slate-600">{bill.doctor || '—'}</td>
-											<td className="px-3 py-3 text-slate-700">Rs. {(bill.amountPaid !== undefined && bill.amountPaid !== null ? bill.amountPaid : bill.amount).toFixed(2)}</td>
+											<td className="px-3 py-3 text-slate-700">Rs. {bill.amount.toFixed(2)}</td>
 											<td className="px-3 py-3 text-slate-600">{formatInstallmentPlan(bill)}</td>
 											<td className="px-3 py-3 text-slate-600">{bill.paymentMode || '—'}</td>
 												<td className="px-3 py-3 text-slate-600 text-xs">

@@ -21,6 +21,8 @@ import { db } from '@/lib/firebase';
 import PageHeader from '@/components/PageHeader';
 import { sendEmailNotification } from '@/lib/email';
 import { sendSMSNotification, isValidPhoneNumber } from '@/lib/sms';
+import { useAuth } from '@/contexts/AuthContext';
+import { notifyAdmins } from '@/lib/notificationUtils';
 import RescheduleDialog from '@/components/appointments/RescheduleDialog';
 import CancelDialog from '@/components/appointments/CancelDialog';
 import { checkAppointmentConflict, checkAvailabilityConflict } from '@/lib/appointmentUtils';
@@ -66,6 +68,7 @@ type FirestoreAppointmentRecord = AdminAppointmentRecord & {
 };
 
 export default function Appointments() {
+	const { user } = useAuth();
 	const [appointments, setAppointments] = useState<FirestoreAppointmentRecord[]>([]);
 	const [patients, setPatients] = useState<(AdminPatientRecord & { id?: string; patientType?: string })[]>([]);
 	const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -484,6 +487,23 @@ export default function Appointments() {
 					console.error('Failed to notify staff member:', emailError);
 				}
 			}
+
+			// Notify other admins about new appointment
+			await notifyAdmins(
+				'New Appointment Created',
+				`${user?.displayName || user?.email || 'Admin'} created an appointment for ${patientRecord.name} with ${bookingForm.doctor} on ${bookingForm.date}`,
+				'appointment_created',
+				{
+					appointmentId: appointmentId,
+					patientId: patientRecord.patientId,
+					patientName: patientRecord.name,
+					doctor: bookingForm.doctor,
+					date: bookingForm.date,
+					createdBy: user?.uid || '',
+					createdByName: user?.displayName || user?.email || 'Unknown',
+				},
+				user?.uid
+			);
 
 			alert('Appointment booked successfully.');
 			resetBookingForm();

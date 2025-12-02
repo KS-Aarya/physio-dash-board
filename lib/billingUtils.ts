@@ -2,8 +2,6 @@
  * Billing utilities for cycle management and billing operations
  */
 
-import type { Firestore } from 'firebase/firestore';
-
 export interface BillingCycle {
 	id: string;
 	startDate: string; // YYYY-MM-DD
@@ -135,90 +133,5 @@ export function getMonthName(month: number): string {
 	return months[month - 1] || '';
 }
 
-/**
- * Recalculate and update the total amount for a billing cycle
- * This function queries all billing records within the cycle date range
- * and sums up the amounts of completed records, then updates the cycle document
- */
-export async function updateCycleTotalAmount(
-	db: Firestore,
-	cycleId: string,
-	cycleStartDate: string,
-	cycleEndDate: string
-): Promise<void> {
-	try {
-		const { collection, query, where, getDocs, doc, updateDoc } = await import('firebase/firestore');
-		
-		// Query all billing records within the cycle date range
-		const billingQuery = query(
-			collection(db, 'billing'),
-			where('date', '>=', cycleStartDate),
-			where('date', '<=', cycleEndDate)
-		);
-		
-		const billingSnapshot = await getDocs(billingQuery);
-		
-		// Calculate total from completed billing records
-		let totalAmount = 0;
-		billingSnapshot.docs.forEach(docSnap => {
-			const data = docSnap.data();
-			if (data.status === 'Completed' && data.amount) {
-				totalAmount += Number(data.amount) || 0;
-			}
-		});
-		
-		// Update the cycle document with the calculated total
-		const cycleRef = doc(db, 'billingCycles', cycleId);
-		await updateDoc(cycleRef, {
-			totalAmount: Number(totalAmount.toFixed(2)),
-			updatedAt: new Date().toISOString(),
-		});
-	} catch (error) {
-		console.error(`Failed to update cycle total for cycle ${cycleId}:`, error);
-		// Don't throw - allow the billing operation to complete even if cycle update fails
-	}
-}
 
-/**
- * Update cycle total amount for a specific date
- * Determines which cycle the date belongs to and updates that cycle's total
- */
-export async function updateCycleTotalForDate(
-	db: Firestore,
-	billingDate: string
-): Promise<void> {
-	try {
-		const cycle = getBillingCycleForDate(billingDate);
-		const cycleId = getBillingCycleId(cycle.month, cycle.year);
-		
-		// Find the cycle document
-		const { collection, query, where, getDocs, addDoc, serverTimestamp } = await import('firebase/firestore');
-		const cyclesQuery = query(
-			collection(db, 'billingCycles'),
-			where('month', '==', cycle.month),
-			where('year', '==', cycle.year)
-		);
-		
-		const cyclesSnapshot = await getDocs(cyclesQuery);
-		if (!cyclesSnapshot.empty) {
-			const cycleDoc = cyclesSnapshot.docs[0];
-			await updateCycleTotalAmount(db, cycleDoc.id, cycle.startDate, cycle.endDate);
-		} else {
-			// Cycle doesn't exist yet, create it
-			const cycleRef = await addDoc(collection(db, 'billingCycles'), {
-				id: cycleId,
-				startDate: cycle.startDate,
-				endDate: cycle.endDate,
-				month: cycle.month,
-				year: cycle.year,
-				status: 'active',
-				totalAmount: 0,
-				createdAt: serverTimestamp(),
-			});
-			// Calculate and update the totalAmount after creating the cycle
-			await updateCycleTotalAmount(db, cycleRef.id, cycle.startDate, cycle.endDate);
-		}
-	} catch (error) {
-		console.error(`Failed to update cycle total for date ${billingDate}:`, error);
-	}
-}
+
