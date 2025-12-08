@@ -72,7 +72,8 @@ const getProjectId = () => {
 	if (process.env.NODE_ENV === 'development') {
 		console.log('  [ADMIN SDK] Using production project ID:', prodId);
 	}
-	return prodId;
+	// Fallback to common project IDs if not set
+	return prodId || 'centersportsscience-5be86';
 };
 
 const resolveDatabaseId = () => {
@@ -173,16 +174,21 @@ if (getApps().length === 0) {
 		// No service account key provided - use Application Default Credentials
 		// This works if running on Google Cloud or if GOOGLE_APPLICATION_CREDENTIALS is set
 		console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT_KEY not found. Attempting to use Application Default Credentials...');
+		const projectId = getProjectId();
+		if (!projectId) {
+			console.error('❌ NEXT_PUBLIC_FIREBASE_PROJECT_ID is not set. Please set it in .env.local');
+			console.error('   See FIREBASE_ADMIN_SETUP.md for setup instructions');
+		}
 		try {
 			app = initializeApp({
-				projectId: getProjectId(),
+				projectId: projectId,
 			});
 			console.warn('⚠️ Firebase Admin SDK initialized without explicit credentials (may fail on admin operations)');
 		} catch (error) {
 			console.error('❌ Failed to initialize Firebase Admin:', error);
 			// Create a minimal app for development (will fail on actual admin operations)
 			app = initializeApp({
-				projectId: getProjectId() || 'centersportsscience-5be86',
+				projectId: projectId || 'centersportsscience-5be86',
 			}, 'admin');
 			console.warn('⚠️ Created minimal Firebase Admin app (admin operations will fail)');
 		}
@@ -193,8 +199,22 @@ if (getApps().length === 0) {
 
 // Final safety check to satisfy TypeScript definite assignment
 if (!app) {
-	const fallbackProjectId = getProjectId() || 'centerforsportsandscience';
+	const fallbackProjectId = getProjectId() || 'centersportsscience-5be86';
 	app = getApps()[0] || initializeApp({ projectId: fallbackProjectId });
+}
+
+// Ensure project ID is set on the app
+if (app && !app.options.projectId) {
+	const projectId = getProjectId() || 'centersportsscience-5be86';
+	console.warn(`⚠️ Firebase Admin app missing projectId, setting to: ${projectId}`);
+	// Re-initialize with project ID if missing
+	try {
+		app = initializeApp({
+			projectId: projectId,
+		}, app.name || 'admin');
+	} catch (error) {
+		console.error('❌ Failed to re-initialize with project ID:', error);
+	}
 }
 
 authAdmin = getAuth(app as App);

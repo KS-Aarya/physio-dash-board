@@ -52,7 +52,6 @@ export default function InventoryManagement() {
 	const [showAddItemModal, setShowAddItemModal] = useState(false);
 	const [showIssueModal, setShowIssueModal] = useState(false);
 	const [showReturnModal, setShowReturnModal] = useState(false);
-	const [showAcknowledgeModal, setShowAcknowledgeModal] = useState(false);
 
 	const [newItem, setNewItem] = useState({ name: '', type: 'Physiotherapy' as ItemType, totalQuantity: 0 });
 	const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -408,8 +407,8 @@ export default function InventoryManagement() {
 				});
 			}
 
-			// Create issue record with pending acknowledgment
-			const issueRef = await addDoc(collection(db, 'inventoryIssues'), {
+			// Create issue record
+			await addDoc(collection(db, 'inventoryIssues'), {
 				itemId: issueForm.itemId,
 				itemName: selectedItem.name,
 				itemType: selectedItem.type,
@@ -419,37 +418,15 @@ export default function InventoryManagement() {
 				issuedTo: issueForm.issuedTo,
 				issuedToName: selectedStaff.userName,
 				issuedToEmail: selectedStaff.userEmail,
-				status: 'pending_acknowledgment',
+				status: 'acknowledged',
 				returnedQuantity: 0,
 				createdAt: serverTimestamp(),
 				updatedAt: serverTimestamp(),
 			});
 
-			// Send notification to clinical team member for acknowledgment
-			try {
-				const usersQuery = query(collection(db, 'users'), where('email', '==', selectedStaff.userEmail.toLowerCase()));
-				const usersSnapshot = await getDocs(usersQuery);
-				if (!usersSnapshot.empty) {
-					const clinicalUserId = usersSnapshot.docs[0].id;
-					await addDoc(collection(db, 'notifications'), {
-						userId: clinicalUserId,
-						title: 'Inventory Item Issued - Acknowledgment Required',
-						message: `${user.displayName || user.email?.split('@')[0] || 'FrontDesk'} has issued ${issueForm.quantity} ${selectedItem.name} (${selectedItem.type}) to you. Please acknowledge to confirm receipt.`,
-						category: 'inventory_issue',
-						status: 'unread',
-						inventoryIssueId: issueRef.id,
-						itemName: selectedItem.name,
-						quantity: issueForm.quantity,
-						createdAt: serverTimestamp(),
-					});
-				}
-			} catch (notifError) {
-				console.error('Failed to send notification:', notifError);
-			}
-
 			setIssueForm({ itemId: '', quantity: 0, issuedTo: '' });
 			setShowIssueModal(false);
-			alert('Item issued successfully! The clinical team member has been notified for acknowledgment.');
+			alert('Item issued successfully!');
 		} catch (error) {
 			console.error('Failed to issue item:', error);
 			alert('Failed to issue item. Please try again.');
@@ -458,51 +435,6 @@ export default function InventoryManagement() {
 		}
 	};
 
-	const handleAcknowledge = async () => {
-		if (!selectedIssueRecord || !user) return;
-
-		setSubmitting(true);
-		try {
-			// Update issue record status
-			await updateDoc(doc(db, 'inventoryIssues', selectedIssueRecord.id), {
-				status: 'acknowledged',
-				acknowledgedAt: serverTimestamp(),
-				acknowledgedBy: user.uid,
-				updatedAt: serverTimestamp(),
-			});
-
-			// Note: issuedQuantity is already updated when item is issued, so we don't need to update it again here
-
-			// Send notification to FrontDesk
-			try {
-				const frontdeskQuery = query(collection(db, 'users'), where('email', '==', (selectedIssueRecord.issuedBy || '').toLowerCase()));
-				const frontdeskSnapshot = await getDocs(frontdeskQuery);
-				if (!frontdeskSnapshot.empty) {
-					const frontdeskUserId = frontdeskSnapshot.docs[0].id;
-					await addDoc(collection(db, 'notifications'), {
-						userId: frontdeskUserId,
-						title: 'Inventory Item Acknowledged',
-						message: `${user.displayName || user.email?.split('@')[0] || 'Clinical Team'} has acknowledged receipt of ${selectedIssueRecord.quantity} ${selectedIssueRecord.itemName}.`,
-						category: 'inventory_acknowledgment',
-						status: 'unread',
-						inventoryIssueId: selectedIssueRecord.id,
-						createdAt: serverTimestamp(),
-					});
-				}
-			} catch (notifError) {
-				console.error('Failed to send acknowledgment notification:', notifError);
-			}
-
-			setShowAcknowledgeModal(false);
-			setSelectedIssueRecord(null);
-			alert('Item acknowledged successfully!');
-		} catch (error) {
-			console.error('Failed to acknowledge item:', error);
-			alert('Failed to acknowledge item. Please try again.');
-		} finally {
-			setSubmitting(false);
-		}
-	};
 
 	const handleReturnItem = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -541,33 +473,21 @@ export default function InventoryManagement() {
 				updatedAt: serverTimestamp(),
 			});
 
-			// Send notification to clinical team member for acknowledgment
-			try {
-				if (issueRecord.issuedToEmail) {
-					const usersQuery = query(collection(db, 'users'), where('email', '==', issueRecord.issuedToEmail.toLowerCase()));
-					const usersSnapshot = await getDocs(usersQuery);
-					if (!usersSnapshot.empty) {
-						const clinicalUserId = usersSnapshot.docs[0].id;
-						await addDoc(collection(db, 'notifications'), {
-							userId: clinicalUserId,
-							title: 'Inventory Item Returned - Acknowledgment Required',
-							message: `${user.displayName || user.email?.split('@')[0] || 'FrontDesk'} has marked ${returnForm.quantity} ${issueRecord.itemName} as returned. Please acknowledge to confirm.`,
-							category: 'inventory_return',
-							status: 'unread',
-							inventoryIssueId: returnForm.issueRecordId,
-							itemName: issueRecord.itemName,
-							quantity: returnForm.quantity,
-							createdAt: serverTimestamp(),
-						});
-					}
-				}
-			} catch (notifError) {
-				console.error('Failed to send return notification:', notifError);
+			// Update item's returned quantity immediately
+			const itemRef = doc(db, 'inventoryItems', issueRecord.itemId);
+			const itemDoc = await getDoc(itemRef);
+			if (itemDoc.exists()) {
+				const currentItem = itemDoc.data();
+				await updateDoc(itemRef, {
+					returnedQuantity: (currentItem.returnedQuantity || 0) + returnForm.quantity,
+					issuedQuantity: (currentItem.issuedQuantity || 0) - returnForm.quantity,
+					updatedAt: serverTimestamp(),
+				});
 			}
 
 			setReturnForm({ issueRecordId: '', quantity: 0 });
 			setShowReturnModal(false);
-			alert('Return recorded! The clinical team member has been notified for acknowledgment.');
+			alert('Return recorded successfully!');
 		} catch (error) {
 			console.error('Failed to return item:', error);
 			alert('Failed to return item. Please try again.');
@@ -576,53 +496,6 @@ export default function InventoryManagement() {
 		}
 	};
 
-	const handleAcknowledgeReturn = async () => {
-		if (!selectedIssueRecord || !user) return;
-
-		setSubmitting(true);
-		try {
-			// Update item's returned quantity (only after acknowledgment)
-			const itemRef = doc(db, 'inventoryItems', selectedIssueRecord.itemId);
-			const itemDoc = await getDoc(itemRef);
-			if (itemDoc.exists()) {
-				const currentItem = itemDoc.data();
-				await updateDoc(itemRef, {
-					returnedQuantity: (currentItem.returnedQuantity || 0) + (selectedIssueRecord.returnedQuantity || 0),
-					issuedQuantity: (currentItem.issuedQuantity || 0) - (selectedIssueRecord.returnedQuantity || 0),
-					updatedAt: serverTimestamp(),
-				});
-			}
-
-			// Send notification to FrontDesk
-			try {
-				const frontdeskQuery = query(collection(db, 'users'), where('email', '==', (selectedIssueRecord.issuedBy || '').toLowerCase()));
-				const frontdeskSnapshot = await getDocs(frontdeskQuery);
-				if (!frontdeskSnapshot.empty) {
-					const frontdeskUserId = frontdeskSnapshot.docs[0].id;
-					await addDoc(collection(db, 'notifications'), {
-						userId: frontdeskUserId,
-						title: 'Inventory Return Acknowledged',
-						message: `${user.displayName || user.email?.split('@')[0] || 'Clinical Team'} has acknowledged return of ${selectedIssueRecord.returnedQuantity} ${selectedIssueRecord.itemName}.`,
-						category: 'inventory_return_acknowledgment',
-						status: 'unread',
-						inventoryIssueId: selectedIssueRecord.id,
-						createdAt: serverTimestamp(),
-					});
-				}
-			} catch (notifError) {
-				console.error('Failed to send return acknowledgment notification:', notifError);
-			}
-
-			setShowAcknowledgeModal(false);
-			setSelectedIssueRecord(null);
-			alert('Return acknowledged successfully!');
-		} catch (error) {
-			console.error('Failed to acknowledge return:', error);
-			alert('Failed to acknowledge return. Please try again.');
-		} finally {
-			setSubmitting(false);
-		}
-	};
 
 	const handleAdminReturnItem = async (record: IssueRecord) => {
 		if (!user || !isAdmin) {
@@ -636,11 +509,7 @@ export default function InventoryManagement() {
 			return;
 		}
 
-		const statusWarning = record.status === 'pending_acknowledgment' 
-			? '\n\nNote: This item has not been acknowledged yet. Are you sure you want to mark it as returned?'
-			: '';
-
-		if (!confirm(`Mark ${returnQuantity} ${record.itemName} as returned?${statusWarning}`)) {
+		if (!confirm(`Mark ${returnQuantity} ${record.itemName} as returned?`)) {
 			return;
 		}
 
@@ -685,17 +554,6 @@ export default function InventoryManagement() {
 	const isAdmin = user?.role === 'Admin';
 	const isClinicalTeam = user?.role === 'ClinicalTeam' || user?.role === 'clinic' || user?.role === 'Clinic';
 
-	// Get pending acknowledgments for current user (clinical team)
-	const pendingAcknowledgments = useMemo(() => {
-		if (!isClinicalTeam || !user) return [];
-		return issueRecords.filter(record => {
-			const userEmail = user.email?.toLowerCase();
-			return (
-				record.issuedToEmail?.toLowerCase() === userEmail &&
-				(record.status === 'pending_acknowledgment' || (record.status === 'returned' && !record.acknowledgedBy))
-			);
-		});
-	}, [issueRecords, isClinicalTeam, user]);
 
 	return (
 		<div className="min-h-svh bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 px-6 py-10">
@@ -743,39 +601,6 @@ export default function InventoryManagement() {
 					)}
 				</div>
 
-				{/* Pending Acknowledgments (Clinical Team) */}
-				{isClinicalTeam && pendingAcknowledgments.length > 0 && (
-					<section className="rounded-2xl bg-yellow-50 border-2 border-yellow-200 p-6 shadow-lg">
-						<h2 className="text-lg font-semibold text-yellow-900 mb-4">Pending Acknowledgments</h2>
-						<div className="space-y-3">
-							{pendingAcknowledgments.map(record => (
-								<div key={record.id} className="bg-white rounded-lg p-4 border border-yellow-300">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="font-semibold text-slate-900">{record.itemName}</p>
-											<p className="text-sm text-slate-600">
-												{record.status === 'pending_acknowledgment'
-													? `Issued: ${record.quantity} items by ${record.issuedByName}`
-													: `Returned: ${record.returnedQuantity} items by ${record.issuedByName}`}
-											</p>
-										</div>
-										<button
-											type="button"
-											onClick={() => {
-												setSelectedIssueRecord(record);
-												setShowAcknowledgeModal(true);
-											}}
-											className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-600 via-green-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-green-700 hover:via-green-800 hover:to-emerald-700 transition-all duration-200 hover:scale-105"
-										>
-											<i className="fas fa-check text-xs" aria-hidden="true" />
-											Acknowledge
-										</button>
-									</div>
-								</div>
-							))}
-						</div>
-					</section>
-				)}
 
 				{/* Inventory Items List */}
 				<section className="rounded-2xl bg-white p-6 shadow-lg border border-slate-200">
@@ -1167,16 +992,15 @@ export default function InventoryManagement() {
 									<option value="">Select an issue record...</option>
 									{issueRecords
 										.filter(r => {
-											// Show items that are acknowledged or pending, and not fully returned
+											// Show items that are acknowledged and not fully returned
 											const remainingToReturn = r.quantity - (r.returnedQuantity || 0);
-											return (r.status === 'acknowledged' || r.status === 'pending_acknowledgment') && remainingToReturn > 0;
+											return r.status === 'acknowledged' && remainingToReturn > 0;
 										})
 										.map(record => {
 											const remainingToReturn = record.quantity - (record.returnedQuantity || 0);
-											const statusLabel = record.status === 'pending_acknowledgment' ? ' (Pending)' : '';
 											return (
 												<option key={record.id} value={record.id}>
-													{record.itemName} - Issued: {record.quantity} to {record.issuedToName}{statusLabel} (Remaining: {remainingToReturn})
+													{record.itemName} - Issued: {record.quantity} to {record.issuedToName} (Remaining: {remainingToReturn})
 												</option>
 											);
 										})}
@@ -1230,66 +1054,6 @@ export default function InventoryManagement() {
 				</div>
 			)}
 
-			{/* Acknowledge Modal */}
-			{showAcknowledgeModal && selectedIssueRecord && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-					<div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
-						<h3 className="text-lg font-semibold text-slate-900 mb-4">
-							{selectedIssueRecord.status === 'pending_acknowledgment' ? 'Acknowledge Receipt' : 'Acknowledge Return'}
-						</h3>
-						<div className="mb-4">
-							<p className="text-sm text-slate-600 mb-2">
-								{selectedIssueRecord.status === 'pending_acknowledgment' ? (
-									<>
-										Confirm receipt of <strong>{selectedIssueRecord.quantity}</strong> {selectedIssueRecord.itemName} issued by{' '}
-										<strong>{selectedIssueRecord.issuedByName}</strong>?
-									</>
-								) : (
-									<>
-										Confirm return of <strong>{selectedIssueRecord.returnedQuantity}</strong> {selectedIssueRecord.itemName}?
-									</>
-								)}
-							</p>
-						</div>
-						<div className="flex items-center gap-3 justify-end pt-4">
-							<button
-								type="button"
-								onClick={() => {
-									setShowAcknowledgeModal(false);
-									setSelectedIssueRecord(null);
-								}}
-								className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
-							>
-								Cancel
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									if (selectedIssueRecord.status === 'pending_acknowledgment') {
-										handleAcknowledge();
-									} else {
-										handleAcknowledgeReturn();
-									}
-								}}
-								disabled={submitting}
-								className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-600 via-green-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-green-700 hover:via-green-800 hover:to-emerald-700 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-							>
-								{submitting ? (
-									<>
-										<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-										Acknowledging...
-									</>
-								) : (
-									<>
-										<i className="fas fa-check text-xs" aria-hidden="true" />
-										Acknowledge
-									</>
-								)}
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }

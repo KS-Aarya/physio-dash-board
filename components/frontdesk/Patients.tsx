@@ -884,6 +884,50 @@ export default function Patients() {
 		void autoResetPatients();
 	}, [patients, billing]);
 
+	// Reset patient for new appointment cycle
+	const handleResetForNewAppointment = async (patient: FrontdeskPatient) => {
+		if (!patient.id) return;
+
+		if (
+			!confirm(
+				`Reset ${patient.name} for a new appointment cycle? This will clear their package information and allow booking a new consultation.`
+			)
+		) {
+			return;
+		}
+
+		try {
+			const patientRef = doc(db, 'patients', patient.id);
+			await updateDoc(patientRef, {
+				paymentType: 'without' as PaymentTypeOption,
+				paymentDescription: null,
+				packageAmount: null,
+				concessionPercent: null,
+				readyForNewAppointment: true,
+			});
+
+			setPatients(prev =>
+				prev.map(p =>
+					p.id === patient.id
+						? {
+								...p,
+								paymentType: 'without' as PaymentTypeOption,
+								paymentDescription: undefined,
+								packageAmount: null,
+								concessionPercent: null,
+								readyForNewAppointment: true,
+						  }
+						: p
+				)
+			);
+
+			alert(`${patient.name} has been reset for a new appointment cycle. You can now book a new consultation.`);
+		} catch (error) {
+			console.error('Failed to reset patient for new appointment', error);
+			alert('Failed to reset patient. Please try again.');
+		}
+	};
+
 	// Check if patient has pending package payment
 	const getPendingPackageBill = (patientId: string, patient?: FrontdeskPatient): BillingRecord | null => {
 		// If patient has no package fields set, don't show package buttons
@@ -2363,6 +2407,20 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 																	<i className="fas fa-edit text-xs" aria-hidden="true" />
 																	Edit
 																</button>
+																{!canBookNewConsultation(patient.patientId, patient) && (
+																	<button
+																		type="button"
+																		onClick={event => {
+																			event.stopPropagation();
+																			setOpenMenuId(null);
+																			handleResetForNewAppointment(patient);
+																		}}
+																		className="flex w-full items-center gap-2 px-4 py-2 text-sky-600 transition hover:bg-sky-50 hover:text-sky-700"
+																	>
+																		<i className="fas fa-calendar-plus text-xs" aria-hidden="true" />
+																		New Appointment
+																	</button>
+																)}
 																<button
 																	type="button"
 																	onClick={event => {
