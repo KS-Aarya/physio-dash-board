@@ -107,29 +107,15 @@ export default function LeaveManagement() {
 				);
 				setAdmins(adminList);
 
-				// Filter staff for handover based on user role
-				const userRole = user.role;
-				if (userRole === 'ClinicalTeam' || userRole === 'clinic' || userRole === 'Clinic') {
-					// Show clinical team members (excluding current user)
-					const clinicalStaff = mapped.filter(
-						s =>
-							s.status === 'Active' &&
-							['Physiotherapist', 'StrengthAndConditioning', 'ClinicalTeam'].includes(s.role) &&
-							s.userEmail !== user.email
-					);
-					setStaff(clinicalStaff);
-				} else if (userRole === 'FrontDesk' || userRole === 'frontdesk') {
-					// Show frontdesk members (excluding current user)
-					const frontdeskStaff = mapped.filter(
-						s =>
-							s.status === 'Active' &&
-							(s.role === 'FrontDesk' || s.role === 'frontdesk') &&
-							s.userEmail !== user.email
-					);
-					setStaff(frontdeskStaff);
-				} else {
-					setStaff([]);
-				}
+				// Show all active staff members for handover (excluding current user and admins)
+				const allStaff = mapped.filter(
+					s =>
+						s.status === 'Active' &&
+						s.userEmail !== user.email &&
+						s.role !== 'Admin' &&
+						s.role !== 'admin'
+				);
+				setStaff(allStaff);
 
 				setLoading(false);
 			},

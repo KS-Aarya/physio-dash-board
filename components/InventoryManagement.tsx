@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs, getDoc, serverTimestamp, type QuerySnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, getDoc, serverTimestamp, type QuerySnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import PageHeader from '@/components/PageHeader';
@@ -55,11 +55,13 @@ export default function InventoryManagement() {
 	const [showAcknowledgeModal, setShowAcknowledgeModal] = useState(false);
 
 	const [newItem, setNewItem] = useState({ name: '', type: 'Physiotherapy' as ItemType, totalQuantity: 0 });
+	const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 	const [issueForm, setIssueForm] = useState({ itemId: '', quantity: 0, issuedTo: '' });
 	const [returnForm, setReturnForm] = useState({ issueRecordId: '', quantity: 0 });
 	const [selectedIssueRecord, setSelectedIssueRecord] = useState<IssueRecord | null>(null);
 
 	const [submitting, setSubmitting] = useState(false);
+	const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
 	// Load staff members (for issuing to clinical team)
 	useEffect(() => {
@@ -108,7 +110,7 @@ export default function InventoryManagement() {
 						totalQuantity: data.totalQuantity || 0,
 						issuedQuantity: data.issuedQuantity || 0,
 						returnedQuantity: data.returnedQuantity || 0,
-						remainingQuantity: (data.totalQuantity || 0) - (data.issuedQuantity || 0) + (data.returnedQuantity || 0),
+						remainingQuantity: 0, // Will be calculated from issue records
 						createdAt: data.createdAt,
 						updatedAt: data.updatedAt,
 					} as InventoryItem;
@@ -126,6 +128,47 @@ export default function InventoryManagement() {
 
 		return () => unsubscribe();
 	}, [user]);
+
+	// Calculate issued and remaining quantities from issue records
+	useEffect(() => {
+		if (items.length === 0 || issueRecords.length === 0) {
+			// If no issue records, just set remaining = total - issued
+			setItems(prevItems => 
+				prevItems.map(item => ({
+					...item,
+					remainingQuantity: Math.max(0, item.totalQuantity - item.issuedQuantity),
+				}))
+			);
+			return;
+		}
+
+		// Calculate actual issued and returned quantities from issue records
+		setItems(prevItems => 
+			prevItems.map(item => {
+				// Find all issue records for this item
+				const itemIssues = issueRecords.filter(record => record.itemId === item.id);
+				
+				// Calculate total issued (sum of all issued quantities, regardless of status)
+				const totalIssued = itemIssues.reduce((sum, record) => sum + record.quantity, 0);
+				
+				// Calculate total returned (sum of all returned quantities)
+				const totalReturned = itemIssues.reduce((sum, record) => sum + (record.returnedQuantity || 0), 0);
+				
+				// Currently issued = total issued - total returned
+				const currentlyIssued = totalIssued - totalReturned;
+				
+				// Remaining = Total - Currently Issued
+				const remaining = Math.max(0, item.totalQuantity - currentlyIssued);
+				
+				return {
+					...item,
+					issuedQuantity: currentlyIssued,
+					returnedQuantity: totalReturned,
+					remainingQuantity: remaining,
+				};
+			})
+		);
+	}, [issueRecords]);
 
 	// Load issue records
 	useEffect(() => {
@@ -212,6 +255,116 @@ export default function InventoryManagement() {
 		}
 	};
 
+	const handleUpdateItem = async (e: React.FormEvent) => {
+		e.preventDefault();
+
+		if (!user || !editingItem) {
+			alert('User not authenticated or item not selected');
+			return;
+		}
+
+		if (!newItem.name.trim()) {
+			alert('Please enter item name');
+			return;
+		}
+
+		if (newItem.totalQuantity <= 0) {
+			alert('Please enter a valid quantity');
+			return;
+		}
+
+		// Validate that new total quantity is not less than currently issued quantity
+		if (newItem.totalQuantity < editingItem.issuedQuantity) {
+			alert(`Total quantity cannot be less than issued quantity (${editingItem.issuedQuantity})`);
+			return;
+		}
+
+		setSubmitting(true);
+		try {
+			await updateDoc(doc(db, 'inventoryItems', editingItem.id), {
+				name: newItem.name.trim(),
+				type: newItem.type,
+				totalQuantity: newItem.totalQuantity,
+				updatedAt: serverTimestamp(),
+				updatedBy: user.uid,
+				updatedByName: user.displayName || user.email?.split('@')[0] || 'User',
+			});
+
+			setNewItem({ name: '', type: 'Physiotherapy', totalQuantity: 0 });
+			setEditingItem(null);
+			setShowAddItemModal(false);
+			alert('Item updated successfully!');
+		} catch (error) {
+			console.error('Failed to update item:', error);
+			alert('Failed to update item. Please try again.');
+		} finally {
+			setSubmitting(false);
+		}
+	};
+
+	const handleEditItem = (item: InventoryItem) => {
+		setEditingItem(item);
+		setNewItem({
+			name: item.name,
+			type: item.type,
+			totalQuantity: item.totalQuantity,
+		});
+		setShowAddItemModal(true);
+	};
+
+	const handleIssueItemFromRow = (item: InventoryItem) => {
+		setIssueForm({
+			itemId: item.id,
+			quantity: 0,
+			issuedTo: '',
+		});
+		setShowIssueModal(true);
+	};
+
+	const handleDeleteItem = async (item: InventoryItem) => {
+		if (!user) {
+			setNotification({ message: 'User not authenticated', type: 'error' });
+			setTimeout(() => setNotification(null), 3000);
+			return;
+		}
+
+		// Check if item has issued quantities
+		if (item.issuedQuantity > 0) {
+			setNotification({ 
+				message: `Cannot delete item. ${item.issuedQuantity} items are currently issued. Please return all items before deleting.`, 
+				type: 'error' 
+			});
+			setTimeout(() => setNotification(null), 5000);
+			return;
+		}
+
+		// Check if item has issue history
+		const hasIssueHistory = issueRecords.some(record => record.itemId === item.id);
+		if (hasIssueHistory) {
+			const confirmMessage = `This item has issue history. Are you sure you want to delete "${item.name}"?\n\nThis action cannot be undone.`;
+			if (!confirm(confirmMessage)) {
+				return;
+			}
+		} else {
+			if (!confirm(`Are you sure you want to delete "${item.name}"?\n\nThis action cannot be undone.`)) {
+				return;
+			}
+		}
+
+		setSubmitting(true);
+		try {
+			await deleteDoc(doc(db, 'inventoryItems', item.id));
+			setNotification({ message: 'Item deleted successfully!', type: 'success' });
+			setTimeout(() => setNotification(null), 3000);
+		} catch (error) {
+			console.error('Failed to delete item:', error);
+			setNotification({ message: 'Failed to delete item. Please try again.', type: 'error' });
+			setTimeout(() => setNotification(null), 5000);
+		} finally {
+			setSubmitting(false);
+		}
+	};
+
 	const handleIssueItem = async (e: React.FormEvent) => {
 		e.preventDefault();
 
@@ -244,6 +397,17 @@ export default function InventoryManagement() {
 
 		setSubmitting(true);
 		try {
+			// Update item's issued quantity immediately when item is issued
+			const itemRef = doc(db, 'inventoryItems', issueForm.itemId);
+			const itemDoc = await getDoc(itemRef);
+			if (itemDoc.exists()) {
+				const currentItem = itemDoc.data();
+				await updateDoc(itemRef, {
+					issuedQuantity: (currentItem.issuedQuantity || 0) + issueForm.quantity,
+					updatedAt: serverTimestamp(),
+				});
+			}
+
 			// Create issue record with pending acknowledgment
 			const issueRef = await addDoc(collection(db, 'inventoryIssues'), {
 				itemId: issueForm.itemId,
@@ -307,16 +471,7 @@ export default function InventoryManagement() {
 				updatedAt: serverTimestamp(),
 			});
 
-			// Update item's issued quantity (only after acknowledgment)
-			const itemRef = doc(db, 'inventoryItems', selectedIssueRecord.itemId);
-			const itemDoc = await getDoc(itemRef);
-			if (itemDoc.exists()) {
-				const currentItem = itemDoc.data();
-				await updateDoc(itemRef, {
-					issuedQuantity: (currentItem.issuedQuantity || 0) + selectedIssueRecord.quantity,
-					updatedAt: serverTimestamp(),
-				});
-			}
+			// Note: issuedQuantity is already updated when item is issued, so we don't need to update it again here
 
 			// Send notification to FrontDesk
 			try {
@@ -368,8 +523,10 @@ export default function InventoryManagement() {
 			return;
 		}
 
-		if (returnForm.quantity > issueRecord.quantity) {
-			alert(`Cannot return more than ${issueRecord.quantity} items`);
+		// Calculate remaining quantity to return (accounting for already returned items)
+		const remainingQuantity = issueRecord.quantity - (issueRecord.returnedQuantity || 0);
+		if (returnForm.quantity > remainingQuantity) {
+			alert(`Cannot return more than ${remainingQuantity} items (${issueRecord.quantity} issued, ${issueRecord.returnedQuantity || 0} already returned)`);
 			return;
 		}
 
@@ -467,6 +624,63 @@ export default function InventoryManagement() {
 		}
 	};
 
+	const handleAdminReturnItem = async (record: IssueRecord) => {
+		if (!user || !isAdmin) {
+			alert('Only admins can manually return items');
+			return;
+		}
+
+		const returnQuantity = record.quantity - (record.returnedQuantity || 0);
+		if (returnQuantity <= 0) {
+			alert('All items have already been returned');
+			return;
+		}
+
+		const statusWarning = record.status === 'pending_acknowledgment' 
+			? '\n\nNote: This item has not been acknowledged yet. Are you sure you want to mark it as returned?'
+			: '';
+
+		if (!confirm(`Mark ${returnQuantity} ${record.itemName} as returned?${statusWarning}`)) {
+			return;
+		}
+
+		setSubmitting(true);
+		try {
+			// Update issue record
+			await updateDoc(doc(db, 'inventoryIssues', record.id), {
+				status: 'returned',
+				returnedAt: serverTimestamp(),
+				returnedBy: user.uid,
+				returnedQuantity: record.quantity, // Return all remaining items
+				updatedAt: serverTimestamp(),
+			});
+
+			// Update item's returned quantity
+			const itemRef = doc(db, 'inventoryItems', record.itemId);
+			const itemDoc = await getDoc(itemRef);
+			if (itemDoc.exists()) {
+				const currentItem = itemDoc.data();
+				const newReturnedQuantity = (currentItem.returnedQuantity || 0) + returnQuantity;
+				// Only reduce issued quantity if it was previously acknowledged
+				const newIssuedQuantity = record.status === 'acknowledged' 
+					? (currentItem.issuedQuantity || 0) - returnQuantity
+					: (currentItem.issuedQuantity || 0);
+				await updateDoc(itemRef, {
+					returnedQuantity: newReturnedQuantity,
+					issuedQuantity: newIssuedQuantity,
+					updatedAt: serverTimestamp(),
+				});
+			}
+
+			alert('Item marked as returned successfully!');
+		} catch (error) {
+			console.error('Failed to return item:', error);
+			alert('Failed to return item. Please try again.');
+		} finally {
+			setSubmitting(false);
+		}
+	};
+
 	const isFrontDesk = user?.role === 'FrontDesk' || user?.role === 'frontdesk';
 	const isAdmin = user?.role === 'Admin';
 	const isClinicalTeam = user?.role === 'ClinicalTeam' || user?.role === 'clinic' || user?.role === 'Clinic';
@@ -486,12 +700,41 @@ export default function InventoryManagement() {
 	return (
 		<div className="min-h-svh bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 px-6 py-10">
 			<div className="mx-auto max-w-7xl space-y-6">
-				<div className="flex items-center justify-between">
-					<PageHeader title="Inventory Management" />
-					{isFrontDesk && (
+				{/* Notification Banner */}
+				{notification && (
+					<div
+						className={`fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg transition-all duration-300 ${
+							notification.type === 'success'
+								? 'bg-green-50 border-2 border-green-200 text-green-800'
+								: 'bg-red-50 border-2 border-red-200 text-red-800'
+						}`}
+					>
+						<i
+							className={`fas ${notification.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} text-lg`}
+							aria-hidden="true"
+						/>
+						<p className="font-semibold text-sm">{notification.message}</p>
 						<button
 							type="button"
-							onClick={() => setShowAddItemModal(true)}
+							onClick={() => setNotification(null)}
+							className="ml-2 text-slate-500 hover:text-slate-700"
+							aria-label="Close notification"
+						>
+							<i className="fas fa-times" aria-hidden="true" />
+						</button>
+					</div>
+				)}
+
+				<div className="flex items-center justify-between">
+					<PageHeader title="Inventory Management" />
+					{(isFrontDesk || isAdmin) && (
+						<button
+							type="button"
+							onClick={() => {
+								setEditingItem(null);
+								setNewItem({ name: '', type: 'Physiotherapy', totalQuantity: 0 });
+								setShowAddItemModal(true);
+							}}
 							className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-blue-700 hover:via-blue-800 hover:to-indigo-700 transition-all duration-200 hover:scale-105"
 						>
 							<i className="fas fa-plus text-xs" aria-hidden="true" />
@@ -538,10 +781,13 @@ export default function InventoryManagement() {
 				<section className="rounded-2xl bg-white p-6 shadow-lg border border-slate-200">
 					<div className="flex items-center justify-between mb-4">
 						<h2 className="text-lg font-semibold text-slate-900">Inventory Items</h2>
-						{isFrontDesk && (
+						{(isFrontDesk || isAdmin) && (
 							<button
 								type="button"
-								onClick={() => setShowIssueModal(true)}
+								onClick={() => {
+									setIssueForm({ itemId: '', quantity: 0, issuedTo: '' });
+									setShowIssueModal(true);
+								}}
 								className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-indigo-700 hover:via-indigo-800 hover:to-purple-700 transition-all duration-200 hover:scale-105"
 							>
 								<i className="fas fa-hand-holding text-xs" aria-hidden="true" />
@@ -565,6 +811,9 @@ export default function InventoryManagement() {
 										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Issued</th>
 										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Returned</th>
 										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Remaining</th>
+										{(isFrontDesk || isAdmin) && (
+											<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Actions</th>
+										)}
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-slate-100 bg-white">
@@ -576,6 +825,40 @@ export default function InventoryManagement() {
 											<td className="px-4 py-3 text-sm text-slate-600">{item.issuedQuantity}</td>
 											<td className="px-4 py-3 text-sm text-slate-600">{item.returnedQuantity}</td>
 											<td className="px-4 py-3 text-sm font-semibold text-slate-900">{item.remainingQuantity}</td>
+											{(isFrontDesk || isAdmin) && (
+												<td className="px-4 py-3 text-sm">
+													<div className="flex items-center gap-2">
+														<button
+															type="button"
+															onClick={() => handleEditItem(item)}
+															className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md hover:from-blue-700 hover:via-blue-800 hover:to-indigo-700 transition-all duration-200 hover:scale-105"
+														>
+															<i className="fas fa-edit text-xs" aria-hidden="true" />
+															Edit
+														</button>
+														{item.remainingQuantity > 0 && (
+															<button
+																type="button"
+																onClick={() => handleIssueItemFromRow(item)}
+																className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md hover:from-indigo-700 hover:via-indigo-800 hover:to-purple-700 transition-all duration-200 hover:scale-105"
+															>
+																<i className="fas fa-hand-holding text-xs" aria-hidden="true" />
+																Issue
+															</button>
+														)}
+														<button
+															type="button"
+															onClick={() => handleDeleteItem(item)}
+															disabled={submitting || item.issuedQuantity > 0}
+															className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-red-600 via-red-700 to-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md hover:from-red-700 hover:via-red-800 hover:to-rose-700 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+															title={item.issuedQuantity > 0 ? 'Cannot delete item with issued quantities' : 'Delete item'}
+														>
+															<i className="fas fa-trash text-xs" aria-hidden="true" />
+															Delete
+														</button>
+													</div>
+												</td>
+											)}
 										</tr>
 									))}
 								</tbody>
@@ -614,36 +897,61 @@ export default function InventoryManagement() {
 										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Issued To</th>
 										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Status</th>
 										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Returned</th>
+										{isAdmin && (
+											<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">Actions</th>
+										)}
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-slate-100 bg-white">
-									{issueRecords.map(record => (
-										<tr key={record.id} className="hover:bg-slate-50">
-											<td className="px-4 py-3 text-sm font-medium text-slate-900">{record.itemName}</td>
-											<td className="px-4 py-3 text-sm text-slate-600">{record.itemType}</td>
-											<td className="px-4 py-3 text-sm text-slate-600">{record.quantity}</td>
-											<td className="px-4 py-3 text-sm text-slate-600">{record.issuedByName}</td>
-											<td className="px-4 py-3 text-sm text-slate-600">{record.issuedToName}</td>
-											<td className="px-4 py-3 text-sm">
-												<span
-													className={`px-2 py-1 rounded-full text-xs font-semibold ${
-														record.status === 'acknowledged'
-															? 'bg-green-100 text-green-700'
+									{issueRecords.map(record => {
+										const remainingToReturn = record.quantity - (record.returnedQuantity || 0);
+										const canReturn = isAdmin && remainingToReturn > 0;
+										
+										return (
+											<tr key={record.id} className="hover:bg-slate-50">
+												<td className="px-4 py-3 text-sm font-medium text-slate-900">{record.itemName}</td>
+												<td className="px-4 py-3 text-sm text-slate-600">{record.itemType}</td>
+												<td className="px-4 py-3 text-sm text-slate-600">{record.quantity}</td>
+												<td className="px-4 py-3 text-sm text-slate-600">{record.issuedByName}</td>
+												<td className="px-4 py-3 text-sm text-slate-600">{record.issuedToName}</td>
+												<td className="px-4 py-3 text-sm">
+													<span
+														className={`px-2 py-1 rounded-full text-xs font-semibold ${
+															record.status === 'acknowledged'
+																? 'bg-green-100 text-green-700'
+																: record.status === 'returned'
+																	? 'bg-orange-100 text-orange-700'
+																	: 'bg-yellow-100 text-yellow-700'
+														}`}
+													>
+														{record.status === 'acknowledged'
+															? 'Acknowledged'
 															: record.status === 'returned'
-																? 'bg-orange-100 text-orange-700'
-																: 'bg-yellow-100 text-yellow-700'
-													}`}
-												>
-													{record.status === 'acknowledged'
-														? 'Acknowledged'
-														: record.status === 'returned'
-															? 'Returned'
-															: 'Pending'}
-												</span>
-											</td>
-											<td className="px-4 py-3 text-sm text-slate-600">{record.returnedQuantity || 0}</td>
-										</tr>
-									))}
+																? 'Returned'
+																: 'Pending'}
+													</span>
+												</td>
+												<td className="px-4 py-3 text-sm text-slate-600">{record.returnedQuantity || 0}</td>
+												{isAdmin && (
+													<td className="px-4 py-3 text-sm">
+														{canReturn ? (
+															<button
+																type="button"
+																onClick={() => handleAdminReturnItem(record)}
+																disabled={submitting}
+																className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-orange-600 via-orange-700 to-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md hover:from-orange-700 hover:via-orange-800 hover:to-red-700 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+															>
+																<i className="fas fa-undo text-xs" aria-hidden="true" />
+																Return
+															</button>
+														) : (
+															<span className="text-xs text-slate-400">—</span>
+														)}
+													</td>
+												)}
+											</tr>
+										);
+									})}
 								</tbody>
 							</table>
 						</div>
@@ -651,12 +959,24 @@ export default function InventoryManagement() {
 				</section>
 			</div>
 
-			{/* Add Item Modal */}
+			{/* Add/Edit Item Modal */}
 			{showAddItemModal && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
 					<div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
-						<h3 className="text-lg font-semibold text-slate-900 mb-4">Add New Item</h3>
-						<form onSubmit={handleAddItem} className="space-y-4">
+						<h3 className="text-lg font-semibold text-slate-900 mb-4">
+							{editingItem ? 'Edit Item' : 'Add New Item'}
+						</h3>
+						<form onSubmit={editingItem ? handleUpdateItem : handleAddItem} className="space-y-4">
+							{editingItem && (
+								<div className="mb-4 p-3 bg-slate-50 rounded-lg">
+									<p className="text-xs text-slate-600 mb-1">
+										<strong>Current Status:</strong> {editingItem.issuedQuantity} issued, {editingItem.returnedQuantity} returned
+									</p>
+									<p className="text-xs text-slate-500">
+										Total quantity must be at least {editingItem.issuedQuantity} (currently issued items)
+									</p>
+								</div>
+							)}
 							<div>
 								<label htmlFor="itemName" className="block text-sm font-medium text-slate-700 mb-2">
 									Item Name <span className="text-red-500">*</span>
@@ -693,7 +1013,7 @@ export default function InventoryManagement() {
 								<input
 									id="totalQuantity"
 									type="number"
-									min="1"
+									min={editingItem ? editingItem.issuedQuantity : 1}
 									value={newItem.totalQuantity || ''}
 									onChange={e => setNewItem({ ...newItem, totalQuantity: parseInt(e.target.value) || 0 })}
 									className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
@@ -706,6 +1026,7 @@ export default function InventoryManagement() {
 									onClick={() => {
 										setShowAddItemModal(false);
 										setNewItem({ name: '', type: 'Physiotherapy', totalQuantity: 0 });
+										setEditingItem(null);
 									}}
 									className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
 								>
@@ -719,12 +1040,12 @@ export default function InventoryManagement() {
 									{submitting ? (
 										<>
 											<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-											Adding...
+											{editingItem ? 'Updating...' : 'Adding...'}
 										</>
 									) : (
 										<>
-											<i className="fas fa-plus text-xs" aria-hidden="true" />
-											Add Item
+											<i className={`fas ${editingItem ? 'fa-save' : 'fa-plus'} text-xs`} aria-hidden="true" />
+											{editingItem ? 'Update Item' : 'Add Item'}
 										</>
 									)}
 								</button>
@@ -845,12 +1166,20 @@ export default function InventoryManagement() {
 								>
 									<option value="">Select an issue record...</option>
 									{issueRecords
-										.filter(r => r.status === 'acknowledged')
-										.map(record => (
-											<option key={record.id} value={record.id}>
-												{record.itemName} - Issued: {record.quantity} to {record.issuedToName}
-											</option>
-										))}
+										.filter(r => {
+											// Show items that are acknowledged or pending, and not fully returned
+											const remainingToReturn = r.quantity - (r.returnedQuantity || 0);
+											return (r.status === 'acknowledged' || r.status === 'pending_acknowledgment') && remainingToReturn > 0;
+										})
+										.map(record => {
+											const remainingToReturn = record.quantity - (record.returnedQuantity || 0);
+											const statusLabel = record.status === 'pending_acknowledgment' ? ' (Pending)' : '';
+											return (
+												<option key={record.id} value={record.id}>
+													{record.itemName} - Issued: {record.quantity} to {record.issuedToName}{statusLabel} (Remaining: {remainingToReturn})
+												</option>
+											);
+										})}
 								</select>
 							</div>
 							<div>
