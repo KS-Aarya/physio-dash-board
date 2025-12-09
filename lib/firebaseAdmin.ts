@@ -72,8 +72,8 @@ const getProjectId = () => {
 	if (process.env.NODE_ENV === 'development') {
 		console.log('  [ADMIN SDK] Using production project ID:', prodId);
 	}
-	// Fallback to common project IDs if not set
-	return prodId || 'centersportsscience-5be86';
+	// Fallback to sixs-physio (matching client-side config)
+	return prodId || 'sixs-physio';
 };
 
 const resolveDatabaseId = () => {
@@ -99,9 +99,10 @@ if (getApps().length === 0) {
 	if (serviceAccountKey) {
 		try {
 			console.log(`✅ Firebase Admin SDK: Built credentials from FIREBASE_ADMIN_${isStaging ? 'STAGING_' : ''}* variables`);
+			// Prioritize service account's project_id as it's the source of truth
 			app = initializeApp({
 				credential: cert(serviceAccountKey),
-				projectId: getProjectId() || serviceAccountKey.project_id,
+				projectId: serviceAccountKey.project_id || getProjectId() || 'sixs-physio',
 			});
 		} catch (error) {
 			console.error('❌ Failed to initialize Firebase Admin using FIREBASE_ADMIN_* variables:', (error as Error).message);
@@ -119,16 +120,17 @@ if (getApps().length === 0) {
 		process.env.GOOGLE_APPLICATION_CREDENTIALS || 
 		(process.cwd() ? join(process.cwd(), 'firebase-service-account.json') : null);
 	
-	if (credentialsPath) {
+	if (credentialsPath && !app) {
 		try {
 			const filePath = credentialsPath.startsWith('/') || credentialsPath.match(/^[A-Z]:/) 
 				? credentialsPath 
 				: join(process.cwd(), credentialsPath);
 			const serviceAccountKey = JSON.parse(readFileSync(filePath, 'utf8'));
 			console.log(`✅ Firebase Admin SDK: Loaded credentials from file (${isStaging ? 'STAGING' : 'PRODUCTION'}):`, filePath);
+			// Prioritize service account's project_id as it's the source of truth
 			app = initializeApp({
 				credential: cert(serviceAccountKey),
-				projectId: getProjectId() || serviceAccountKey.project_id,
+				projectId: serviceAccountKey.project_id || getProjectId() || 'sixs-physio',
 			});
 		} catch (error: any) {
 			// File doesn't exist or can't be read - that's okay, try other methods
@@ -157,9 +159,10 @@ if (getApps().length === 0) {
 			try {
 				const serviceAccountKey = JSON.parse(serviceAccount);
 				console.log(`✅ Firebase Admin SDK: Successfully loaded service account credentials from env var (${isStaging ? 'STAGING' : 'PRODUCTION'})`);
+				// Prioritize service account's project_id as it's the source of truth
 				app = initializeApp({
 					credential: cert(serviceAccountKey),
-					projectId: getProjectId() || serviceAccountKey.project_id,
+					projectId: serviceAccountKey.project_id || getProjectId() || 'sixs-physio',
 				});
 			} catch (error) {
 				console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', error);
@@ -188,7 +191,7 @@ if (getApps().length === 0) {
 			console.error('❌ Failed to initialize Firebase Admin:', error);
 			// Create a minimal app for development (will fail on actual admin operations)
 			app = initializeApp({
-				projectId: projectId || 'centersportsscience-5be86',
+				projectId: projectId || 'sixs-physio',
 			}, 'admin');
 			console.warn('⚠️ Created minimal Firebase Admin app (admin operations will fail)');
 		}
@@ -199,13 +202,13 @@ if (getApps().length === 0) {
 
 // Final safety check to satisfy TypeScript definite assignment
 if (!app) {
-	const fallbackProjectId = getProjectId() || 'centersportsscience-5be86';
+	const fallbackProjectId = getProjectId() || 'sixs-physio';
 	app = getApps()[0] || initializeApp({ projectId: fallbackProjectId });
 }
 
 // Ensure project ID is set on the app
 if (app && !app.options.projectId) {
-	const projectId = getProjectId() || 'centersportsscience-5be86';
+	const projectId = getProjectId() || 'sixs-physio';
 	console.warn(`⚠️ Firebase Admin app missing projectId, setting to: ${projectId}`);
 	// Re-initialize with project ID if missing
 	try {
@@ -230,9 +233,16 @@ const hasCredentials = !!(
 );
 
 if (hasCredentials) {
+	const actualProjectId = app?.options?.projectId || getProjectId() || 'not set';
 	console.log(`✅ Firebase Admin SDK initialized successfully (${isStaging ? 'STAGING' : 'PRODUCTION'})`);
-	console.log('   Project ID:', app?.options?.projectId || getProjectId() || 'not set');
+	console.log('   Project ID:', actualProjectId);
 	console.log('   Database ID:', resolvedDatabaseId ?? '(default)');
+	
+	// Warn if project ID doesn't match expected
+	if (actualProjectId !== 'sixs-physio' && actualProjectId !== 'not set') {
+		console.warn(`   ⚠️  Project ID mismatch: Admin SDK is using "${actualProjectId}" but client expects "sixs-physio"`);
+		console.warn('   This will cause token verification errors. Ensure your service account file has project_id: "sixs-physio"');
+	}
 } else {
 	console.warn('⚠️ Firebase Admin SDK initialized but credentials may be missing');
 	console.warn(`   Set FIREBASE_SERVICE_ACCOUNT_KEY${isStaging ? '_STAGING' : ''} or GOOGLE_APPLICATION_CREDENTIALS${isStaging ? '_STAGING' : ''} in .env.local`);
