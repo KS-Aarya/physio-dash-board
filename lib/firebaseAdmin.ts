@@ -262,8 +262,6 @@ if (existingApps.length > 0) {
 			}
 		}
 	}
-} else {
-	app = getApps()[0] || null;
 }
 
 // Final safety check to satisfy TypeScript definite assignment
