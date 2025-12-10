@@ -1,4 +1,4 @@
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { readFileSync, existsSync } from 'fs';
@@ -93,7 +93,12 @@ const resolveDatabaseId = () => {
 const resolvedDatabaseId = resolveDatabaseId();
 
 // Initialize Firebase Admin SDK
-if (getApps().length === 0) {
+// First check if app already exists to prevent re-initialization
+const existingApps = getApps();
+if (existingApps.length > 0) {
+	// App already exists, reuse it
+	app = existingApps[0];
+} else {
 	// Method 0: Build credentials from FIREBASE_ADMIN_* fragments
 	let serviceAccountKey = buildServiceAccountFromFragments();
 	if (serviceAccountKey) {
@@ -108,42 +113,62 @@ if (getApps().length === 0) {
 			if (serviceAccountKey.project_id && serviceAccountKey.project_id !== clientProjectId) {
 				console.warn(`   ⚠️  Service account project_id (${serviceAccountKey.project_id}) differs from client project (${clientProjectId}). Using ${clientProjectId} to match client tokens.`);
 			}
-		} catch (error) {
-			console.error('❌ Failed to initialize Firebase Admin using FIREBASE_ADMIN_* variables:', (error as Error).message);
+		} catch (error: any) {
+			// If app already exists, try to get it instead
+			if (error.message?.includes('already exists')) {
+				try {
+					app = getApp();
+				} catch {
+					// Ignore if getApp also fails
+				}
+			} else {
+				console.error('❌ Failed to initialize Firebase Admin using FIREBASE_ADMIN_* variables:', (error as Error).message);
+			}
 		}
 	}
 
 	// Method 1: Try using file path (GOOGLE_APPLICATION_CREDENTIALS or default location)
 	// For staging, try staging-specific file first
-	const stagingCredentialsPath = isStaging 
-		? (process.env.GOOGLE_APPLICATION_CREDENTIALS_STAGING || 
-		   (process.cwd() ? join(process.cwd(), 'firebase-service-account-staging.json') : null))
-		: null;
-	
-	const credentialsPath = stagingCredentialsPath || 
-		process.env.GOOGLE_APPLICATION_CREDENTIALS || 
-		(process.cwd() ? join(process.cwd(), 'firebase-service-account.json') : null);
-	
-	if (credentialsPath) {
-		try {
-			const filePath = credentialsPath.startsWith('/') || credentialsPath.match(/^[A-Z]:/) 
-				? credentialsPath 
-				: join(process.cwd(), credentialsPath);
-			const serviceAccountKey = JSON.parse(readFileSync(filePath, 'utf8'));
-			console.log(`✅ Firebase Admin SDK: Loaded credentials from file (${isStaging ? 'STAGING' : 'PRODUCTION'}):`, filePath);
-			// Use client's project ID to match tokens, even if service account file has different project_id
-			const clientProjectId = getProjectId() || 'sixs-physio';
-			app = initializeApp({
-				credential: cert(serviceAccountKey),
-				projectId: clientProjectId,
-			});
-			if (serviceAccountKey.project_id && serviceAccountKey.project_id !== clientProjectId) {
-				console.warn(`   ⚠️  Service account project_id (${serviceAccountKey.project_id}) differs from client project (${clientProjectId}). Using ${clientProjectId} to match client tokens.`);
-			}
-		} catch (error: any) {
-			// File doesn't exist or can't be read - that's okay, try other methods
-			if (error.code !== 'ENOENT') {
-				console.error('❌ Failed to load credentials from file:', error.message);
+	if (!app) {
+		const stagingCredentialsPath = isStaging 
+			? (process.env.GOOGLE_APPLICATION_CREDENTIALS_STAGING || 
+			   (process.cwd() ? join(process.cwd(), 'firebase-service-account-staging.json') : null))
+			: null;
+		
+		const credentialsPath = stagingCredentialsPath || 
+			process.env.GOOGLE_APPLICATION_CREDENTIALS || 
+			(process.cwd() ? join(process.cwd(), 'firebase-service-account.json') : null);
+		
+		if (credentialsPath) {
+			try {
+				const filePath = credentialsPath.startsWith('/') || credentialsPath.match(/^[A-Z]:/) 
+					? credentialsPath 
+					: join(process.cwd(), credentialsPath);
+				const serviceAccountKey = JSON.parse(readFileSync(filePath, 'utf8'));
+				console.log(`✅ Firebase Admin SDK: Loaded credentials from file (${isStaging ? 'STAGING' : 'PRODUCTION'}):`, filePath);
+				// Use client's project ID to match tokens, even if service account file has different project_id
+				const clientProjectId = getProjectId() || 'sixs-physio';
+				app = initializeApp({
+					credential: cert(serviceAccountKey),
+					projectId: clientProjectId,
+				});
+				if (serviceAccountKey.project_id && serviceAccountKey.project_id !== clientProjectId) {
+					console.warn(`   ⚠️  Service account project_id (${serviceAccountKey.project_id}) differs from client project (${clientProjectId}). Using ${clientProjectId} to match client tokens.`);
+				}
+			} catch (error: any) {
+				// File doesn't exist or can't be read - that's okay, try other methods
+				if (error.code !== 'ENOENT') {
+					// If app already exists, try to get it instead
+					if (error.message?.includes('already exists')) {
+						try {
+							app = getApp();
+						} catch {
+							// Ignore if getApp also fails
+						}
+					} else {
+						console.error('❌ Failed to load credentials from file:', error.message);
+					}
+				}
 			}
 		}
 	}
@@ -176,10 +201,19 @@ if (getApps().length === 0) {
 				if (serviceAccountKey.project_id && serviceAccountKey.project_id !== clientProjectId) {
 					console.warn(`   ⚠️  Service account project_id (${serviceAccountKey.project_id}) differs from client project (${clientProjectId}). Using ${clientProjectId} to match client tokens.`);
 				}
-			} catch (error) {
-				console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', error);
-				console.error('Service account string length:', serviceAccount.length);
-				console.error('First 100 chars:', serviceAccount.substring(0, 100));
+			} catch (error: any) {
+				// If app already exists, try to get it instead
+				if (error.message?.includes('already exists')) {
+					try {
+						app = getApp();
+					} catch {
+						// Ignore if getApp also fails
+					}
+				} else {
+					console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', error);
+					console.error('Service account string length:', serviceAccount.length);
+					console.error('First 100 chars:', serviceAccount.substring(0, 100));
+				}
 			}
 		}
 	}
@@ -199,13 +233,33 @@ if (getApps().length === 0) {
 				projectId: projectId,
 			});
 			console.warn('⚠️ Firebase Admin SDK initialized without explicit credentials (may fail on admin operations)');
-		} catch (error) {
-			console.error('❌ Failed to initialize Firebase Admin:', error);
-			// Create a minimal app for development (will fail on actual admin operations)
-			app = initializeApp({
-				projectId: projectId || 'sixs-physio',
-			}, 'admin');
-			console.warn('⚠️ Created minimal Firebase Admin app (admin operations will fail)');
+		} catch (error: any) {
+			// If app already exists, try to get it instead
+			if (error.message?.includes('already exists')) {
+				try {
+					app = getApp();
+				} catch {
+					// Ignore if getApp also fails
+				}
+			} else {
+				console.error('❌ Failed to initialize Firebase Admin:', error);
+				// Create a minimal app for development (will fail on actual admin operations)
+				try {
+					app = initializeApp({
+						projectId: projectId || 'sixs-physio',
+					}, 'admin');
+					console.warn('⚠️ Created minimal Firebase Admin app (admin operations will fail)');
+				} catch (retryError: any) {
+					// If this also fails with "already exists", get the existing app
+					if (retryError.message?.includes('already exists')) {
+						try {
+							app = getApp('admin') || getApp();
+						} catch {
+							// Ignore if getApp also fails
+						}
+					}
+				}
+			}
 		}
 	}
 } else {
