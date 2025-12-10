@@ -123,13 +123,17 @@ export default function LoginPage() {
 	};
 
 	return (
-		<div className="relative min-h-svh overflow-hidden bg-gradient-to-br from-blue-950 via-blue-900 to-blue-600">
-			{/* Animated gradient overlays */}
+		<div
+			className="relative min-h-svh overflow-hidden bg-cover bg-center"
+			style={{ backgroundImage: "url('/b2.jpg')" }}
+		>
+			{/* Gradient overlays for readability */}
 			<div className="pointer-events-none absolute inset-0">
-				<div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(23,37,84,0.15),_transparent_50%)]" />
-				<div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,_rgba(30,64,175,0.1),_transparent_50%)]" />
-				<div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-800 rounded-full blur-[120px] opacity-15" />
-				<div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full blur-[100px] opacity-10" />
+				<div className="absolute inset-0 bg-gradient-to-br from-blue-950/70 via-blue-900/60 to-blue-600/50" />
+				<div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(23,37,84,0.18),_transparent_55%)]" />
+				<div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,_rgba(30,64,175,0.14),_transparent_55%)]" />
+				<div className="absolute top-0 left-0 w-[620px] h-[620px] bg-blue-900 rounded-full blur-[130px] opacity-20" />
+				<div className="absolute bottom-0 right-0 w-[520px] h-[520px] bg-blue-700 rounded-full blur-[110px] opacity-15" />
 			</div>
 
 			<div className="relative flex min-h-svh">
@@ -140,16 +144,16 @@ export default function LoginPage() {
 						<Image
 							src="/CenterSportsScience_logo.jpg"
 							alt="Center for Sports Science logo"
-							width={180}
-							height={180}
-							className="h-40 w-40 object-contain drop-shadow-2xl"
+							width={220}
+							height={220}
+							className="h-52 w-52 object-contain drop-shadow-2xl"
 							priority
 						/>
 					</div>
 
 					{/* Welcome Text - Left Aligned, Smaller */}
 					<div className="mb-8">
-						<h1 className="text-4xl font-extrabold mb-2 leading-tight">
+						<h1 className="text-5xl font-extrabold mb-2 leading-tight tracking-wide whitespace-nowrap">
 							Welcome Back
 						</h1>
 						<p className="text-3xl font-bold text-purple-200">.!</p>
@@ -171,18 +175,18 @@ export default function LoginPage() {
 				<div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12">
 					<div className="w-full max-w-md">
 						{/* Login Card */}
-						<div className="rounded-3xl bg-white/95 backdrop-blur-xl border border-white/20 px-8 py-10 shadow-2xl">
+						<div className="rounded-3xl bg-white/35 backdrop-blur-2xl border border-white/40 px-8 py-10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.45)]">
 							<div className="relative">
 								{/* Login Header */}
 								<div className="mb-8">
-									<h2 className="text-4xl font-bold text-slate-900 mb-2">Login</h2>
-									<p className="text-slate-600">Glad you're back.!</p>
+									<h2 className="text-4xl font-bold text-black mb-2">Login</h2>
+									<p className="text-black font-semibold">Glad you're back.!</p>
 								</div>
 
 								<form className="space-y-6" onSubmit={handleSubmit}>
 									{/* Email Input */}
 									<div className="space-y-2">
-										<label htmlFor="email" className="block text-sm font-semibold text-slate-700">
+										<label htmlFor="email" className="block text-sm font-semibold text-black">
 											Email Address
 										</label>
 										<input
@@ -193,13 +197,13 @@ export default function LoginPage() {
 											value={formState.email}
 											onChange={event => setFormState(current => ({ ...current, email: event.target.value }))}
 											disabled={loading}
-											className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70"
+											className="w-full rounded-xl border-2 border-white/60 bg-white/80 px-4 py-3.5 text-sm text-black font-semibold outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-white/60 disabled:opacity-80"
 										/>
 									</div>
 
 									{/* Password Input */}
 									<div className="space-y-2">
-										<label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+										<label htmlFor="password" className="block text-sm font-semibold text-black">
 											Password
 										</label>
 										<div className="relative">
@@ -211,7 +215,7 @@ export default function LoginPage() {
 												value={formState.password}
 												onChange={event => setFormState(current => ({ ...current, password: event.target.value }))}
 												disabled={loading}
-												className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 pr-12 text-sm text-slate-900 outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70"
+												className="w-full rounded-xl border-2 border-white/60 bg-white/80 px-4 py-3.5 pr-12 text-sm text-black font-semibold outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-white/60 disabled:opacity-80"
 											/>
 											<button
 												type="button"
