@@ -29,7 +29,7 @@
     "firebase-admin": "^13.6.0",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
-    "next": "16.0.1",
+    "next": "16.0.7",
     "papaparse": "^5.5.3",
     "react": "19.2.0",
     "react-chartjs-2": "^5.3.1",
