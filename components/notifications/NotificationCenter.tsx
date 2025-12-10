@@ -843,7 +843,7 @@ export default function NotificationCenter({
 														<span className="text-xs text-slate-400">
 															{formatRelative(record.createdAt, currentTime)}
 														</span>
-														{record.metadata?.requestId && record.metadata?.type === 'session_transfer_request' && (
+														{record.metadata?.requestId && typeof record.metadata?.type === 'string' && record.metadata.type === 'session_transfer_request' ? (
 															<div className="flex gap-2">
 																<button
 																	type="button"
@@ -873,8 +873,8 @@ export default function NotificationCenter({
 																	Reject
 																</button>
 															</div>
-														)}
-														{record.metadata?.requestId && record.metadata?.type === 'patient_transfer_request' && (
+														) : null}
+														{record.metadata?.requestId && typeof record.metadata?.type === 'string' && record.metadata.type === 'patient_transfer_request' ? (
 															<div className="flex gap-2">
 																<button
 																	type="button"
@@ -904,7 +904,7 @@ export default function NotificationCenter({
 																	Reject
 																</button>
 															</div>
-														)}
+														) : null}
 														{record.category === 'feedback' && (
 															<button
 																type="button"
