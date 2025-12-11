@@ -98,7 +98,8 @@ service cloud.firestore {
                                'dateOfConsultation', 'referredBy', 'chiefComplaint', 'clinicalDiagnosis',
                                'treatmentPlan', 'followUpVisits', 'totalSessionsRequired', 'remainingSessions',
                                'currentPainStatus', 'currentRom', 'currentStrength', 'currentFunctionalAbility',
-                               'complianceWithHEP', 'recommendations', 'physiotherapistRemarks'
+                               'complianceWithHEP', 'recommendations', 'physiotherapistRemarks',
+                               'packageAmount', 'packageName', 'packageDescription', 'concessionPercent', 'paymentType', 'paymentDescription'
                              ])));
       allow delete: if isAdmin();
     }
@@ -118,7 +119,7 @@ service cloud.firestore {
     // -------------------------------
     match /billing/{id} {
       allow read: if isLoggedIn();
-      allow create, update: if isFrontdesk() || isAdmin();
+      allow create, update: if isFrontdesk() || isAdmin() || isClinic();
       allow delete: if isAdmin();
     }
 
