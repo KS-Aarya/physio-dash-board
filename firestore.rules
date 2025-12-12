@@ -350,6 +350,42 @@ service cloud.firestore {
     }
 
     // -------------------------------
+    // ACTIVITIES COLLECTION
+    // -------------------------------
+    // Stores activity logs for clinical team members (meetings, training, etc.)
+    match /activities/{activityId} {
+      // Clinical team members and admins can read activities
+      allow read: if isLoggedIn() && (isClinic() || isAdmin());
+      
+      // Clinical team members can create activities
+      allow create: if isLoggedIn() && isClinic() &&
+                    request.resource.data.staffEmail != null &&
+                    request.resource.data.activityType != null &&
+                    request.resource.data.startTime != null &&
+                    request.resource.data.endTime != null;
+      
+      // Clinical team members can update their own activities, admins can update any
+      allow update: if isLoggedIn() && (
+        isAdmin() ||
+        (isClinic() && 
+         resource != null && 
+         resource.data.staffEmail != null &&
+         request.auth.token.email != null &&
+         resource.data.staffEmail.toLowerCase() == request.auth.token.email.toLowerCase())
+      );
+      
+      // Clinical team members can delete their own activities, admins can delete any
+      allow delete: if isLoggedIn() && (
+        isAdmin() ||
+        (isClinic() && 
+         resource != null && 
+         resource.data.staffEmail != null &&
+         request.auth.token.email != null &&
+         resource.data.staffEmail.toLowerCase() == request.auth.token.email.toLowerCase())
+      );
+    }
+
+    // -------------------------------
     // DENY EVERYTHING ELSE
     // -------------------------------
     match /{document=**} {
