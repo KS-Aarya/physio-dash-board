@@ -1440,11 +1440,18 @@ export default function Appointments() {
 									{groupedByPatient.map(group => {
 										const patientDetails = patients.find(p => p.patientId === group.patientId);
 										const nextAppointment = group.appointments[0]; // Most recent/upcoming
+										
+										// Get ALL appointments for this patient (not just filtered ones)
+										// Exclude package sessions (those with packageBillingId) from status counts
+										const allPatientAppointments = appointments.filter(
+											a => a.patientId === group.patientId && !a.packageBillingId
+										);
+										
 										const statusCounts = {
-											pending: group.appointments.filter(a => a.status === 'pending').length,
-											ongoing: group.appointments.filter(a => a.status === 'ongoing').length,
-											completed: group.appointments.filter(a => a.status === 'completed').length,
-											cancelled: group.appointments.filter(a => a.status === 'cancelled').length,
+											pending: allPatientAppointments.filter(a => a.status === 'pending').length,
+											ongoing: allPatientAppointments.filter(a => a.status === 'ongoing').length,
+											completed: allPatientAppointments.filter(a => a.status === 'completed').length,
+											cancelled: allPatientAppointments.filter(a => a.status === 'cancelled').length,
 										};
 
 										return (
@@ -1492,9 +1499,18 @@ export default function Appointments() {
 													</div>
 												</td>
 												<td className="px-4 py-4">
-													<p className="text-sm font-semibold text-slate-900">
-														{group.appointments.length} appointment{group.appointments.length === 1 ? '' : 's'}
-													</p>
+													{(() => {
+														// Count only non-completed appointments (exclude package sessions)
+														const nonCompletedAppointments = allPatientAppointments.filter(
+															a => a.status !== 'completed'
+														);
+														const appointmentCount = nonCompletedAppointments.length;
+														return (
+															<p className="text-sm font-semibold text-slate-900">
+																{appointmentCount} appointment{appointmentCount === 1 ? '' : 's'}
+															</p>
+														);
+													})()}
 													{patientDetails?.packageName && patientDetails?.totalSessionsRequired && (
 														<div className="mt-2 space-y-1">
 															<p className="text-xs text-purple-600 font-medium">

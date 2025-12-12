@@ -101,7 +101,7 @@ export default function LeaveManagement() {
 					} as StaffMember;
 				});
 
-				// Filter admins and super admins
+				// Filter admins and super admins, then filter to only show specific names
 				const adminList = mapped.filter(
 					s => s.status === 'Active' && (
 						s.role === 'Admin' || 
@@ -111,7 +111,15 @@ export default function LeaveManagement() {
 						s.role === 'superadmin'
 					)
 				);
-				setAdmins(adminList);
+				
+				// Filter to only show: Shaji SP, Nawaz Aman, and Dr dharanjay dubey
+				const allowedNames = ['Shaji SP', 'Nawaz Aman', 'Dr dharanjay dubey'];
+				const filteredAdminList = adminList.filter(
+					admin => allowedNames.some(name => 
+						admin.userName.toLowerCase().trim() === name.toLowerCase().trim()
+					)
+				);
+				setAdmins(filteredAdminList);
 
 				// Show all active staff members for handover (excluding current user, admins, and super admins)
 				const allStaff = mapped.filter(
