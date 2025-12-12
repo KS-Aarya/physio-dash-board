@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, updateDoc, query, where, getDocs, addDoc, serverTimestamp, orderBy, type QuerySnapshot, type Timestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, updateDoc, deleteDoc, query, where, getDocs, addDoc, serverTimestamp, orderBy, type QuerySnapshot, type Timestamp } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 
 import {
@@ -1745,6 +1745,29 @@ export default function Billing() {
 		setShowPaymentSlipModal(true);
 	};
 
+	const handleDeleteBilling = async (bill: BillingRecord) => {
+		if (!bill.id) {
+			alert('Cannot delete: Billing record ID is missing.');
+			return;
+		}
+
+		const confirmMessage = `Are you sure you want to delete the billing record for ${bill.patient} (${bill.billingId})?\n\nThis action cannot be undone and will remove the record from the monthly cycle.`;
+		
+		if (!confirm(confirmMessage)) {
+			return;
+		}
+
+		try {
+			const billingRef = doc(db, 'billing', bill.id);
+			await deleteDoc(billingRef);
+			// The record will automatically be removed from the view since we're using onSnapshot
+			// which will update the billing state when the document is deleted
+		} catch (error) {
+			console.error('Failed to delete billing record', error);
+			alert(`Failed to delete billing record: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		}
+	};
+
 	// Generate receipt HTML when selectedBill changes
 	useEffect(() => {
 		if (selectedBill && showPaymentSlipModal) {
@@ -2677,13 +2700,23 @@ export default function Billing() {
 											<td className="px-3 py-3 text-slate-600">{formatInstallmentPlan(bill)}</td>
 											<td className="px-3 py-3 text-slate-600">{bill.date || '—'}</td>
 											<td className="px-3 py-3 text-right">
-												<button
-													type="button"
-													onClick={() => handlePay(bill)}
-													className="inline-flex items-center rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
-												>
-													Pay
-												</button>
+												<div className="flex items-center justify-end gap-2">
+													<button
+														type="button"
+														onClick={() => handlePay(bill)}
+														className="inline-flex items-center rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+													>
+														Pay
+													</button>
+													<button
+														type="button"
+														onClick={() => handleDeleteBilling(bill)}
+														className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-rose-600 transition hover:border-rose-400 hover:bg-rose-100 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+														title="Delete billing record"
+													>
+														<i className="fas fa-trash text-xs" aria-hidden="true" />
+													</button>
+												</div>
 											</td>
 										</tr>
 									))
@@ -2767,6 +2800,14 @@ export default function Billing() {
 														className="inline-flex items-center rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
 													>
 														Invoice
+													</button>
+													<button
+														type="button"
+														onClick={() => handleDeleteBilling(bill)}
+														className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-rose-600 transition hover:border-rose-400 hover:bg-rose-100 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+														title="Delete billing record"
+													>
+														<i className="fas fa-trash text-xs" aria-hidden="true" />
 													</button>
 												</div>
 											</td>
