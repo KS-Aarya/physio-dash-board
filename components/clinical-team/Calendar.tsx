@@ -6,7 +6,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { EventClickArg, EventChangeArg, ViewMountArg, DateSelectArg } from '@fullcalendar/core';
-import { collection, doc, onSnapshot, updateDoc, query, where, getDocs, addDoc, serverTimestamp, type QuerySnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, updateDoc, deleteDoc, query, where, getDocs, addDoc, serverTimestamp, type QuerySnapshot } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
 import PageHeader from '@/components/PageHeader';
@@ -114,9 +114,17 @@ export default function Calendar() {
 
 	const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
 	const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
+	const [editingActivity, setEditingActivity] = useState<{
+		id: string;
+		activityType: string;
+		description?: string;
+		startTime: string;
+		endTime: string;
+	} | null>(null);
 	const [activityType, setActivityType] = useState<string>('');
 	const [activityDescription, setActivityDescription] = useState<string>('');
 	const [savingActivity, setSavingActivity] = useState(false);
+	const [currentDate, setCurrentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
 	const calendarRef = useRef<FullCalendar>(null);
 
 	const clinicianName = useMemo(() => normalize(user?.displayName ?? ''), [user?.displayName]);
@@ -801,8 +809,38 @@ export default function Calendar() {
 		return [...availabilityEvents, ...appointmentEvents];
 	}, [events, availabilityEvents]);
 
+	// Count only appointment events (excluding availability background events)
+	const appointmentEventsCount = useMemo(() => {
+		return events.filter(event => {
+			if (!event.appointment.date) return false;
+			const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+			if (!dateRegex.test(event.appointment.date)) return false;
+			
+			// Check if it has valid time
+			if (event.appointment.time) {
+				const timeStr = event.appointment.time.trim();
+				const dateTimeStr = `${event.appointment.date}T${timeStr}`;
+				const testDate = new Date(dateTimeStr);
+				return !Number.isNaN(testDate.getTime());
+			}
+			return true;
+		}).length;
+	}, [events]);
+
 	const handleViewChange = (view: ViewMountArg) => {
 		setCurrentView(view.view.type);
+		// Update current date based on the calendar's active date
+		// For day view, use the specific day being viewed
+		// For other views, use today's date
+		if (view.view.type === 'timeGridDay') {
+			const activeDate = view.view.activeStart;
+			if (activeDate) {
+				setCurrentDate(formatDateKey(activeDate));
+			}
+		} else {
+			// For week/month views, show today's activities
+			setCurrentDate(formatDateKey(new Date()));
+		}
 	};
 
 	const handlePrev = () => {
@@ -918,7 +956,7 @@ export default function Calendar() {
 					</div>
 				)}
 
-				{calendarEvents.length > 0 && (
+				{appointmentEventsCount > 0 && (
 					<div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-5 py-4">
 						<div className="flex items-center gap-3">
 							<div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -926,7 +964,7 @@ export default function Calendar() {
 							</div>
 							<div>
 								<p className="text-sm font-semibold text-slate-900">
-									Showing {calendarEvents.length} appointment{calendarEvents.length !== 1 ? 's' : ''} on your schedule
+									Showing {appointmentEventsCount} appointment{appointmentEventsCount !== 1 ? 's' : ''} on your schedule
 								</p>
 								<p className="text-xs text-slate-600">Your upcoming appointments</p>
 							</div>
@@ -1089,10 +1127,26 @@ export default function Calendar() {
 							}}
 							events={[...availabilityEvents, ...calendarEvents, ...activityEvents]}
 							eventClick={(clickInfo) => {
-								// Only handle clicks on appointment events, not availability or activities
 								const eventType = clickInfo.event.extendedProps?.type;
-								if (eventType === 'availability' || eventType === 'activity') {
-									return; // Don't open detail modal for availability or activity events
+								if (eventType === 'availability') {
+									return; // Don't open modal for availability events
+								}
+								if (eventType === 'activity') {
+									// Find the activity and open edit modal
+									const activityId = clickInfo.event.id.replace('activity-', '');
+									const activity = activities.find(a => a.id === activityId);
+									if (activity) {
+										setEditingActivity({
+											id: activity.id,
+											activityType: activity.activityType,
+											description: activity.description || '',
+											startTime: activity.startTime,
+											endTime: activity.endTime,
+										});
+										setActivityType(activity.activityType);
+										setActivityDescription(activity.description || '');
+									}
+									return;
 								}
 								handleEventClick(clickInfo);
 							}}
@@ -1165,12 +1219,244 @@ export default function Calendar() {
 						)}
 					</div>
 
-				<NotificationCenter
-					userId={user?.uid}
-					upcomingReminders={upcomingReminders}
-					className="h-fit w-full lg:w-[320px]"
-					emptyStateHint="New notifications will appear here as appointments and system alerts are generated."
-				/>
+				<div className="flex flex-col gap-4 w-full lg:w-[320px]">
+					<NotificationCenter
+						userId={user?.uid}
+						upcomingReminders={upcomingReminders}
+						className="h-fit w-full"
+						emptyStateHint="New notifications will appear here as appointments and system alerts are generated."
+					/>
+
+					{/* Today's Activities */}
+					<div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+						<header className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+							<h3 className="text-sm font-semibold text-slate-900">
+								<i className="fas fa-tasks mr-2 text-sky-600" aria-hidden="true" />
+								Today's Activities
+							</h3>
+						</header>
+						<div className="max-h-[400px] overflow-y-auto px-4 py-3">
+							{(() => {
+								// Get activities for today
+								const todayActivities = activities.filter(activity => activity.date === currentDate);
+								
+								// Get appointments for today
+								const todayAppointments = assignedAppointments
+									.filter(appointment => appointment.date === currentDate)
+									.map(appointment => {
+										const patient = appointment.patientId ? patientLookup.get(appointment.patientId) : undefined;
+										const patientName = patient?.name || appointment.patient || appointment.patientId || 'Patient';
+										
+										// Calculate start and end times
+										let startTime: Date | null = null;
+										let endTime: Date | null = null;
+										
+										if (appointment.date && appointment.time) {
+											const timeStr = appointment.time.trim();
+											const dateTimeStr = `${appointment.date}T${timeStr}`;
+											startTime = new Date(dateTimeStr);
+											
+											const duration = appointment.duration ?? SLOT_INTERVAL_MINUTES;
+											endTime = new Date(startTime.getTime() + duration * 60000);
+										}
+										
+										return {
+											id: appointment.id,
+											type: 'appointment' as const,
+											title: patientName,
+											startTime,
+											endTime,
+											appointment,
+											patient,
+										};
+									})
+									.filter(item => item.startTime !== null && item.endTime !== null);
+								
+								// Combine and sort all items
+								const allItems = [
+									...todayActivities.map(activity => ({
+										id: activity.id,
+										type: 'activity' as const,
+										title: activity.activityType,
+										startTime: new Date(activity.startTime),
+										endTime: new Date(activity.endTime),
+										description: activity.description,
+										activityType: activity.activityType,
+									})),
+									...todayAppointments.map(apt => ({
+										id: apt.id,
+										type: 'appointment' as const,
+										title: apt.title,
+										startTime: apt.startTime!,
+										endTime: apt.endTime!,
+										appointment: apt.appointment,
+										patient: apt.patient,
+									})),
+								].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+								
+								if (allItems.length === 0) {
+									return (
+										<p className="text-sm text-slate-500 text-center py-4">
+											No activities or appointments scheduled for today.
+										</p>
+									);
+								}
+								
+								return (
+									<div className="space-y-2">
+										{allItems.map(item => {
+											if (item.type === 'activity') {
+												const colors = getActivityColor(item.activityType);
+												return (
+													<div
+														key={item.id}
+														onClick={() => {
+															const activity = activities.find(a => a.id === item.id);
+															if (activity) {
+																setEditingActivity({
+																	id: activity.id,
+																	activityType: activity.activityType,
+																	description: activity.description || '',
+																	startTime: activity.startTime,
+																	endTime: activity.endTime,
+																});
+																setActivityType(activity.activityType);
+																setActivityDescription(activity.description || '');
+															}
+														}}
+														className="cursor-pointer rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:border-sky-300 hover:bg-sky-50 hover:shadow-sm"
+													>
+														<div className="flex items-start justify-between gap-2">
+															<div className="flex-1 min-w-0">
+																<div className="flex items-center gap-2 mb-1">
+																	<div
+																		className="h-3 w-3 rounded-full flex-shrink-0"
+																		style={{ backgroundColor: colors.backgroundColor }}
+																	/>
+																	<p className="text-sm font-semibold text-slate-900 truncate">
+																		{item.title}
+																	</p>
+																</div>
+																<p className="text-xs text-slate-600 mb-1">
+																	<i className="fas fa-clock mr-1" aria-hidden="true" />
+																	{new Intl.DateTimeFormat('en-US', {
+																		hour: 'numeric',
+																		minute: '2-digit',
+																	}).format(item.startTime)}
+																	{' - '}
+																	{new Intl.DateTimeFormat('en-US', {
+																		hour: 'numeric',
+																		minute: '2-digit',
+																	}).format(item.endTime)}
+																</p>
+																{item.description && (
+																	<p className="text-xs text-slate-500 line-clamp-2">
+																		{item.description}
+																	</p>
+																)}
+															</div>
+															<button
+																type="button"
+																onClick={(e) => {
+																	e.stopPropagation();
+																	const activity = activities.find(a => a.id === item.id);
+																	if (activity) {
+																		setEditingActivity({
+																			id: activity.id,
+																			activityType: activity.activityType,
+																			description: activity.description || '',
+																			startTime: activity.startTime,
+																			endTime: activity.endTime,
+																		});
+																		setActivityType(activity.activityType);
+																		setActivityDescription(activity.description || '');
+																	}
+																}}
+																className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-600 focus-visible:outline-none"
+																title="Edit activity"
+															>
+																<i className="fas fa-edit text-xs" aria-hidden="true" />
+															</button>
+														</div>
+													</div>
+												);
+											} else {
+												// Appointment item
+												const statusColor = statusColors[(item.appointment.status ?? 'pending') as string] || statusColors.pending;
+												return (
+													<div
+														key={item.id}
+														onClick={() => {
+															const event: CalendarEvent = {
+																id: item.id,
+																appointment: item.appointment,
+																patient: item.patient,
+																dateKey: item.appointment.date || '',
+															};
+															openDetail(event);
+														}}
+														className="cursor-pointer rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:border-sky-300 hover:bg-sky-50 hover:shadow-sm"
+													>
+														<div className="flex items-start justify-between gap-2">
+															<div className="flex-1 min-w-0">
+																<div className="flex items-center gap-2 mb-1">
+																	<div
+																		className="h-3 w-3 rounded-full flex-shrink-0"
+																		style={{ backgroundColor: statusColor.replace('bg-', '').includes('amber') ? '#f59e0b' : statusColor.replace('bg-', '').includes('sky') ? '#0ea5e9' : statusColor.replace('bg-', '').includes('emerald') ? '#10b981' : '#ef4444' }}
+																	/>
+																	<p className="text-sm font-semibold text-slate-900 truncate">
+																		{item.title}
+																	</p>
+																	<span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white ${statusColor}`}>
+																		{capitalize(item.appointment.status ?? 'pending')}
+																	</span>
+																</div>
+																<p className="text-xs text-slate-600 mb-1">
+																	<i className="fas fa-clock mr-1" aria-hidden="true" />
+																	{new Intl.DateTimeFormat('en-US', {
+																		hour: 'numeric',
+																		minute: '2-digit',
+																	}).format(item.startTime)}
+																	{' - '}
+																	{new Intl.DateTimeFormat('en-US', {
+																		hour: 'numeric',
+																		minute: '2-digit',
+																	}).format(item.endTime)}
+																</p>
+																{item.appointment.notes && (
+																	<p className="text-xs text-slate-500 line-clamp-2">
+																		{item.appointment.notes}
+																	</p>
+																)}
+															</div>
+															<button
+																type="button"
+																onClick={(e) => {
+																	e.stopPropagation();
+																	const event: CalendarEvent = {
+																		id: item.id,
+																		appointment: item.appointment,
+																		patient: item.patient,
+																		dateKey: item.appointment.date || '',
+																	};
+																	openDetail(event);
+																}}
+																className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-600 focus-visible:outline-none"
+																title="View appointment"
+															>
+																<i className="fas fa-eye text-xs" aria-hidden="true" />
+															</button>
+														</div>
+													</div>
+												);
+											}
+										})}
+									</div>
+								);
+							})()}
+						</div>
+					</div>
+				</div>
 			</section>
 
 			{detailEvent && (
@@ -1389,7 +1675,8 @@ export default function Calendar() {
 										const staffSnapshot = await getDocs(staffQuery);
 										
 										if (staffSnapshot.empty) {
-											alert('Staff record not found');
+											alert('Staff record not found. Please contact an administrator.');
+											setSavingActivity(false);
 											return;
 										}
 
@@ -1414,7 +1701,8 @@ export default function Calendar() {
 										setActivityDescription('');
 									} catch (error) {
 										console.error('Failed to save activity:', error);
-										alert('Failed to save activity. Please try again.');
+										const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+										alert(`Failed to save activity: ${errorMessage}. Please try again.`);
 									} finally {
 										setSavingActivity(false);
 									}
@@ -1434,6 +1722,190 @@ export default function Calendar() {
 									</>
 								)}
 							</button>
+						</footer>
+					</div>
+				</div>
+			)}
+
+			{/* Edit Activity Modal */}
+			{editingActivity && (
+				<div
+					role="dialog"
+					aria-modal="true"
+					className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm px-4 py-6"
+				>
+					<div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+						<header className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+							<h2 className="text-xl font-bold text-slate-900">
+								<i className="fas fa-edit mr-2 text-sky-600" aria-hidden="true" />
+								Edit Activity
+							</h2>
+							<button
+								type="button"
+								onClick={() => {
+									setEditingActivity(null);
+									setActivityType('');
+									setActivityDescription('');
+								}}
+								className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:bg-slate-100 focus-visible:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+								aria-label="Close dialog"
+							>
+								<i className="fas fa-times text-lg" aria-hidden="true" />
+							</button>
+						</header>
+						<div className="space-y-4 px-6 py-6">
+							<div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+								<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time Slot</p>
+								<p className="mt-1 text-sm font-semibold text-slate-900">
+									{new Intl.DateTimeFormat('en-US', {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric',
+										hour: 'numeric',
+										minute: '2-digit',
+									}).format(new Date(editingActivity.startTime))}
+									{' - '}
+									{new Intl.DateTimeFormat('en-US', {
+										hour: 'numeric',
+										minute: '2-digit',
+									}).format(new Date(editingActivity.endTime))}
+								</p>
+								{(() => {
+									const start = new Date(editingActivity.startTime);
+									const end = new Date(editingActivity.endTime);
+									const durationMs = end.getTime() - start.getTime();
+									const durationMinutes = Math.round(durationMs / 60000);
+									const hours = Math.floor(durationMinutes / 60);
+									const minutes = durationMinutes % 60;
+									const durationText = hours > 0 
+										? `${hours} hour${hours > 1 ? 's' : ''}${minutes > 0 ? ` ${minutes} minute${minutes > 1 ? 's' : ''}` : ''}`
+										: `${minutes} minute${minutes > 1 ? 's' : ''}`;
+									return (
+										<p className="mt-2 text-xs text-slate-600">
+											<i className="fas fa-clock mr-1" aria-hidden="true" />
+											Duration: {durationText} ({durationMinutes} minutes)
+										</p>
+									);
+								})()}
+							</div>
+
+							<div>
+								<label className="mb-2 block text-sm font-medium text-slate-700">
+									Activity Type <span className="text-red-500">*</span>
+								</label>
+								<select
+									value={activityType}
+									onChange={(e) => setActivityType(e.target.value)}
+									className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+									required
+								>
+									<option value="">Select activity type...</option>
+									<option value="Lecture">Lecture</option>
+									<option value="Research/Study">Research/Study</option>
+									<option value="Revenue Generation">Revenue Generation</option>
+									<option value="FBA">FBA</option>
+									<option value="Other">Other</option>
+								</select>
+							</div>
+
+							{activityType && (
+								<div>
+									<label className="mb-2 block text-sm font-medium text-slate-700">
+										Description
+									</label>
+									<textarea
+										value={activityDescription}
+										onChange={(e) => setActivityDescription(e.target.value)}
+										placeholder="Elaborate on the selected activity..."
+										rows={4}
+										className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+									/>
+								</div>
+							)}
+						</div>
+						<footer className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4">
+							<button
+								type="button"
+								onClick={async () => {
+									if (!confirm('Are you sure you want to delete this activity? This action cannot be undone.')) {
+										return;
+									}
+									setSavingActivity(true);
+									try {
+										await deleteDoc(doc(db, 'activities', editingActivity.id));
+										setEditingActivity(null);
+										setActivityType('');
+										setActivityDescription('');
+									} catch (error) {
+										console.error('Failed to delete activity:', error);
+										alert('Failed to delete activity. Please try again.');
+									} finally {
+										setSavingActivity(false);
+									}
+								}}
+								disabled={savingActivity}
+								className="inline-flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-5 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-400 hover:bg-rose-100 focus-visible:border-rose-400 focus-visible:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<i className="fas fa-trash text-xs" aria-hidden="true" />
+								Delete
+							</button>
+							<div className="flex items-center gap-3">
+								<button
+									type="button"
+									onClick={() => {
+										setEditingActivity(null);
+										setActivityType('');
+										setActivityDescription('');
+									}}
+									className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+								>
+									<i className="fas fa-times text-xs" aria-hidden="true" />
+									Cancel
+								</button>
+								<button
+									type="button"
+									onClick={async () => {
+										if (!activityType) {
+											alert('Please select an activity type');
+											return;
+										}
+
+										setSavingActivity(true);
+										try {
+											await updateDoc(doc(db, 'activities', editingActivity.id), {
+												activityType: activityType,
+												description: activityDescription.trim() || null,
+												updatedAt: serverTimestamp(),
+											});
+
+											// Close modal and reset
+											setEditingActivity(null);
+											setActivityType('');
+											setActivityDescription('');
+										} catch (error) {
+											console.error('Failed to update activity:', error);
+											const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+											alert(`Failed to update activity: ${errorMessage}. Please try again.`);
+										} finally {
+											setSavingActivity(false);
+										}
+									}}
+									disabled={savingActivity || !activityType}
+									className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 focus-visible:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									{savingActivity ? (
+										<>
+											<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+											Saving...
+										</>
+									) : (
+										<>
+											<i className="fas fa-save text-xs" aria-hidden="true" />
+											Save Changes
+										</>
+									)}
+								</button>
+							</div>
 						</footer>
 					</div>
 				</div>
