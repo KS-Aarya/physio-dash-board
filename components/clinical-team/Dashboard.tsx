@@ -329,15 +329,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 	}, [assignedAppointments, today]);
 
 	const completedThisWeek = useMemo(() => {
-		const sevenDaysAgo = new Date(today);
-		sevenDaysAgo.setDate(today.getDate() - 7);
+		const now = new Date();
+		const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+		const sevenDaysAgo = new Date(todayStart);
+		sevenDaysAgo.setDate(todayStart.getDate() - 7);
+		
 		return assignedAppointments.filter(appointment => {
 			if ((appointment.status ?? '').toLowerCase() !== 'completed') return false;
 			const parsed = parseDate(appointment.date, appointment.time);
 			if (!parsed) return false;
-			return parsed >= sevenDaysAgo && parsed <= today;
+			
+			// Normalize parsed date to start of day for comparison
+			const appointmentDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+			
+			// Include appointments from 7 days ago up to and including today
+			return appointmentDate >= sevenDaysAgo && appointmentDate <= todayStart;
 		});
-	}, [assignedAppointments, today]);
+	}, [assignedAppointments]);
 
 	const modalTitle = useMemo(() => {
 		switch (modal) {

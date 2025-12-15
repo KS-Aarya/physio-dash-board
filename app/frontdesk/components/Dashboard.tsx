@@ -17,7 +17,7 @@ const STATUS_BADGES: Record<'pending' | 'ongoing' | 'completed' | 'cancelled', s
 	cancelled: 'status-badge-cancelled',
 };
 
-type ModalType = 'patients' | 'pending' | 'ongoing' | 'completed' | null;
+type ModalType = 'patients' | 'pending' | 'ongoing' | 'completed' | 'completedAppointments' | null;
 
 interface DashboardCardConfig {
 	key: Exclude<ModalType, null>;
@@ -92,6 +92,49 @@ const CheckIcon = () => (
 		<path d="M5 13l4 4L19 7" />
 	</svg>
 );
+
+const CalendarIcon = () => (
+	<svg
+		className={ICON_SIZE}
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		strokeWidth={1.7}
+		strokeLinecap="round"
+		strokeLinejoin="round"
+	>
+		<rect x="3" y="4" width="18" height="18" rx="2" />
+		<path d="M16 2v4" />
+		<path d="M8 2v4" />
+		<path d="M3 10h18" />
+		<path d="M8 14h.01" />
+		<path d="M12 14h.01" />
+		<path d="M16 14h.01" />
+	</svg>
+);
+
+function parseDate(date?: string, time?: string) {
+	if (!date) return null;
+	if (time) {
+		const combined = new Date(`${date}T${time}`);
+		if (!Number.isNaN(combined.getTime())) return combined;
+	}
+	const onlyDate = new Date(date);
+	return Number.isNaN(onlyDate.getTime()) ? null : onlyDate;
+}
+
+function formatDateLabel(value?: string) {
+	if (!value) return '—';
+	const parsed = parseDate(value);
+	if (!parsed) return value;
+	return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
+}
+
+function formatTimeLabel(date?: string, time?: string) {
+	const parsed = parseDate(date, time);
+	if (!parsed) return time ?? '—';
+	return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(parsed);
+}
 
 interface AppointmentRecord {
 	id: string;
@@ -214,8 +257,16 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
 	const stats = useMemo(() => {
 		const pending = patients.filter(p => (p.status ?? 'pending') === 'pending');
-		const ongoing = patients.filter(p => p.status === 'ongoing');
-		const completed = patients.filter(p => p.status === 'completed');
+		// Explicitly ensure only patients with status exactly 'ongoing' are included
+		// This prevents any edge cases where completed patients might slip through
+		const ongoing = patients.filter(p => {
+			const status = (p.status ?? '').toLowerCase();
+			return status === 'ongoing';
+		});
+		const completed = patients.filter(p => {
+			const status = (p.status ?? '').toLowerCase();
+			return status === 'completed';
+		});
 
 		// Appointment statistics
 		const today = new Date().toISOString().split('T')[0];
@@ -234,6 +285,24 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 			return aptDate >= weekAgo;
 		});
 
+		// Completed appointments in the last 7 days
+		const now = new Date();
+		const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+		const sevenDaysAgo = new Date(todayStart);
+		sevenDaysAgo.setDate(todayStart.getDate() - 7);
+		
+		const completedAppointmentsThisWeek = appointments.filter(appointment => {
+			if ((appointment.status ?? '').toLowerCase() !== 'completed') return false;
+			const parsed = parseDate(appointment.date, appointment.time);
+			if (!parsed) return false;
+			
+			// Normalize parsed date to start of day for comparison
+			const appointmentDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+			
+			// Include appointments from 7 days ago up to and including today
+			return appointmentDate >= sevenDaysAgo && appointmentDate <= todayStart;
+		});
+
 		// Appointments by staff
 		const appointmentsByStaff = staff.map(member => ({
 			staffName: member.userName,
@@ -249,6 +318,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 				today: todayAppointments.length,
 				thisWeek: thisWeekAppointments.length,
 				cancelledThisWeek: cancelledThisWeek.length,
+				completedThisWeek: completedAppointmentsThisWeek,
 				byStaff: appointmentsByStaff,
 				total: appointments.filter(apt => apt.status !== 'cancelled').length,
 			},
@@ -328,17 +398,19 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 			case 'patients':
 				return 'All Registered Patients';
 			case 'pending':
-				return 'Pending Appointments';
+				return 'Pending Patients';
 			case 'ongoing':
-				return 'Ongoing Appointments';
+				return 'Ongoing Patients';
 			case 'completed':
-				return 'Completed Treatments';
+				return 'Completed Patients';
+			case 'completedAppointments':
+				return 'Completed Appointments (7 days)';
 			default:
 				return '';
 		}
 	}, [modal]);
 
-	const modalRows = useMemo<PatientRecordBasic[]>(() => {
+	const modalRows = useMemo<PatientRecordBasic[] | AppointmentRecord[]>(() => {
 		switch (modal) {
 			case 'patients':
 				return patients;
@@ -348,6 +420,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 				return stats.ongoing;
 			case 'completed':
 				return stats.completed;
+			case 'completedAppointments':
+				return stats.appointments.completedThisWeek;
 			default:
 				return [];
 		}
@@ -385,6 +459,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 			icon: <CheckIcon />,
 			iconBg: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
 			count: stats.completed.length,
+		},
+		{
+			key: 'completedAppointments',
+			title: 'Completed (7 days)',
+			subtitle: 'Sessions wrapped in the last week',
+			icon: <CalendarIcon />,
+			iconBg: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
+			count: stats.appointments.completedThisWeek.length,
 		},
 	];
 
@@ -448,7 +530,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 						<p className="text-sm text-slate-500">
 							Quick access to patient statistics and status breakdowns.
 						</p>
-						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
 							{dashboardCards.map(card => (
 								<button
 									key={card.key}
@@ -623,6 +705,45 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 						<div className="flex-1 overflow-y-auto px-6 py-4">
 							{modalRows.length === 0 ? (
 								<p className="py-10 text-center text-sm text-slate-500">No records available.</p>
+							) : modal === 'completedAppointments' ? (
+								<div className="overflow-x-auto">
+									<table className="min-w-full divide-y divide-slate-200 text-left text-sm text-slate-700">
+										<thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+											<tr>
+												<th className="px-3 py-2 font-semibold">#</th>
+												<th className="px-3 py-2 font-semibold">Patient</th>
+												<th className="px-3 py-2 font-semibold">Date</th>
+												<th className="px-3 py-2 font-semibold">Time</th>
+												<th className="px-3 py-2 font-semibold">Status</th>
+												<th className="px-3 py-2 font-semibold">Clinician</th>
+											</tr>
+										</thead>
+										<tbody className="divide-y divide-slate-100">
+											{(modalRows as AppointmentRecord[]).map((appointment, index) => (
+												<tr key={appointment.id}>
+													<td className="px-3 py-3 text-xs text-slate-500">{index + 1}</td>
+													<td className="px-3 py-3 text-sm font-medium text-slate-800">
+														{appointment.patient || appointment.patientId || 'Patient'}
+													</td>
+													<td className="px-3 py-3 text-sm text-slate-600">
+														{formatDateLabel(appointment.date)}
+													</td>
+													<td className="px-3 py-3 text-sm text-slate-600">
+														{formatTimeLabel(appointment.date, appointment.time)}
+													</td>
+													<td className="px-3 py-3">
+														<span className="badge-base px-3 py-1 bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+															{(appointment.status ?? 'pending').toString().toUpperCase()}
+														</span>
+													</td>
+													<td className="px-3 py-3 text-sm text-slate-600">
+														{appointment.doctor || '—'}
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
 							) : (
 								<div className="overflow-x-auto">
 									<table className="min-w-full divide-y divide-slate-200 text-left text-sm text-slate-700">
@@ -638,7 +759,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 											</tr>
 										</thead>
 										<tbody className="divide-y divide-slate-100">
-											{modalRows.map((patient, index) => {
+											{(modalRows as PatientRecordBasic[]).map((patient, index) => {
 												const status = (patient.status ?? 'pending') as PatientStatus;
 												const badgeClass =
 													STATUS_BADGES[

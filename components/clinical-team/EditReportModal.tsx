@@ -178,6 +178,32 @@ async function markAppointmentCompletedForReport(
 				console.error('Failed to record session usage after report save', sessionError);
 			}
 		}
+
+		// Check if all appointments for this patient are completed and update patient status
+		const allAppointmentsQuery = query(
+			collection(db, 'appointments'),
+			where('patientId', '==', patient.patientId)
+		);
+		const allAppointmentsSnapshot = await getDocs(allAppointmentsQuery);
+		
+		if (!allAppointmentsSnapshot.empty) {
+			const allAppointments = allAppointmentsSnapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data()
+			}));
+			
+			// Check if all appointments are completed or cancelled
+			const allCompleted = allAppointments.every((apt: any) => 
+				apt.status === 'completed' || apt.status === 'cancelled'
+			);
+			
+			if (allCompleted && patient.status !== 'completed' && patient.id) {
+				const patientRef = doc(db, 'patients', patient.id);
+				await updateDoc(patientRef, {
+					status: 'completed',
+				});
+			}
+		}
 	} catch (error) {
 		console.error('Failed to auto-complete appointment after report save', error);
 	}
