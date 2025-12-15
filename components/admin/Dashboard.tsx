@@ -303,8 +303,16 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 	// Calculate statistics
 	const stats = useMemo(() => {
 		const pending = patients.filter(p => p.status === 'pending');
-		const ongoing = patients.filter(p => p.status === 'ongoing');
-		const completed = patients.filter(p => p.status === 'completed');
+		// Explicitly ensure only patients with status exactly 'ongoing' are included
+		// This prevents any edge cases where completed patients might slip through
+		const ongoing = patients.filter(p => {
+			const status = (p.status ?? '').toLowerCase();
+			return status === 'ongoing';
+		});
+		const completed = patients.filter(p => {
+			const status = (p.status ?? '').toLowerCase();
+			return status === 'completed';
+		});
 
 		const today = new Date().toISOString().split('T')[0];
 		const todayAppointments = appointments.filter(apt => apt.date === today && apt.status !== 'cancelled');

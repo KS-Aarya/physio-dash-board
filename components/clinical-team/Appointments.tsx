@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, updateDoc, deleteDoc, addDoc, serverTimestamp, type QuerySnapshot, type Timestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where, getDocs, getDoc, type QuerySnapshot, type Timestamp } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -625,6 +625,9 @@ export default function Appointments() {
 				status,
 			});
 
+			// Small delay to ensure the database update is committed
+			await new Promise(resolve => setTimeout(resolve, 500));
+
 			if (status === 'completed' && oldStatus !== 'completed' && patientDetails?.id) {
 				try {
 					sessionUsageResult = await recordSessionUsageForAppointment({
@@ -661,6 +664,93 @@ export default function Appointments() {
 						p.id === patientDetails.id ? { ...p, remainingSessions: newRemaining } : p
 					)
 				);
+			}
+
+			// Update patient status to 'completed' if all appointments are completed
+			if (status === 'completed' && patientDetails?.id) {
+				try {
+					// Query database directly to get current state of all appointments for this patient
+					const patientId = appointment.patientId;
+					console.log(`🔍 Checking patient status for patientId: ${patientId}`);
+					
+					const appointmentsQuery = query(
+						collection(db, 'appointments'),
+						where('patientId', '==', patientId)
+					);
+					const appointmentsSnapshot = await getDocs(appointmentsQuery);
+					
+					if (!appointmentsSnapshot.empty) {
+						const allPatientAppointments = appointmentsSnapshot.docs.map(doc => ({
+							id: doc.id,
+							...doc.data()
+						}));
+						
+						console.log(`📋 Found ${allPatientAppointments.length} appointments for patient ${patientId}:`, 
+							allPatientAppointments.map((apt: any) => ({ id: apt.id, status: apt.status, date: apt.date }))
+						);
+						
+						// Check if all appointments are completed or cancelled
+						const allCompleted = allPatientAppointments.length > 0 && 
+							allPatientAppointments.every((apt: any) => 
+								apt.status === 'completed' || apt.status === 'cancelled'
+							);
+						
+						console.log(`✅ All appointments completed? ${allCompleted}`);
+						console.log(`📊 Current patient status in DB: ${patientDetails.status}`);
+						
+						if (allCompleted && patientDetails.status !== 'completed') {
+							console.log(`🔄 Updating patient ${patientDetails.patientId} status to 'completed'...`);
+							const patientRef = doc(db, 'patients', patientDetails.id);
+							
+							try {
+								await updateDoc(patientRef, {
+									status: 'completed',
+								});
+								
+								// Wait a moment for the update to propagate
+								await new Promise(resolve => setTimeout(resolve, 300));
+								
+								// Verify the update by reading back from database
+								const updatedPatientDoc = await getDoc(patientRef);
+								const updatedStatus = updatedPatientDoc.data()?.status;
+								
+								if (updatedStatus === 'completed') {
+									console.log(`✅ Patient ${patientDetails.patientId} status successfully updated to 'completed' in database`);
+									
+									setPatients(prev =>
+										prev.map(p =>
+											p.id === patientDetails.id ? { ...p, status: 'completed' } : p
+										)
+									);
+								} else {
+									console.error(`❌ Update failed! Patient status is still '${updatedStatus}' instead of 'completed'`);
+									console.error(`Patient ID: ${patientDetails.id}, Patient ID (display): ${patientDetails.patientId}`);
+									alert(`Warning: Patient status update may have failed. Please check Firebase console.`);
+								}
+							} catch (updateError) {
+								console.error(`❌ Error updating patient status:`, updateError);
+								console.error(`Error details:`, {
+									patientId: patientDetails.patientId,
+									patientDocId: patientDetails.id,
+									error: updateError
+								});
+								alert(`Failed to update patient status: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`);
+							}
+						} else if (!allCompleted) {
+							const incompleteCount = allPatientAppointments.filter((apt: any) => 
+								apt.status !== 'completed' && apt.status !== 'cancelled'
+							).length;
+							console.log(`⚠️ Not all appointments are completed. ${incompleteCount} appointment(s) still pending/ongoing.`);
+						} else if (patientDetails.status === 'completed') {
+							console.log(`ℹ️ Patient ${patientDetails.patientId} already has status 'completed'`);
+						}
+					} else {
+						console.log(`⚠️ No appointments found for patient ${patientId}`);
+					}
+				} catch (error) {
+					console.error('❌ Failed to check and update patient status:', error);
+					console.error('Error details:', error);
+				}
 			}
 
 			// Only send notifications for completed or cancelled status changes

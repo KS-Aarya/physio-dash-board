@@ -272,6 +272,7 @@ export default function Patients() {
 	const [registerFormErrors, setRegisterFormErrors] = useState<Partial<Record<keyof typeof registerForm, string>>>({});
 	const [isRegistering, setIsRegistering] = useState(false);
 	const restoreFileInputRef = useRef<HTMLInputElement>(null);
+	const [isSyncingStatuses, setIsSyncingStatuses] = useState(false);
 
 	// Load patients from Firestore
 	useEffect(() => {
@@ -448,7 +449,16 @@ export default function Patients() {
 					(patient.patientId || '').toLowerCase().includes(query) ||
 					(patient.phone || '').toLowerCase().includes(query) ||
 					(patient.email || '').toLowerCase().includes(query);
-				const matchesStatus = statusFilter === 'all' || patient.status === statusFilter;
+				
+				// Status filter: explicitly ensure only ongoing patients show when filtering for ongoing
+				let matchesStatus = true;
+				if (statusFilter === 'ongoing') {
+					// When filtering for ongoing, only show patients with status 'ongoing'
+					matchesStatus = patient.status === 'ongoing';
+				} else if (statusFilter !== 'all') {
+					// For other status filters, match exactly
+					matchesStatus = patient.status === statusFilter;
+				}
 				const registeredAt = patient.registeredAt ? new Date(patient.registeredAt) : null;
 				const matchesDateFrom = dateFrom
 					? (registeredAt ? registeredAt >= new Date(`${dateFrom}T00:00:00`) : false)
@@ -1770,12 +1780,113 @@ export default function Patients() {
 		}
 	};
 
+	const syncPatientStatuses = async () => {
+		if (isSyncingStatuses) return;
+		
+		const confirmed = confirm('This will check all patients and update their status to "completed" if all their appointments are completed. Continue?');
+		if (!confirmed) return;
+		
+		setIsSyncingStatuses(true);
+		let updated = 0;
+		let errors = 0;
+		const updateLog: string[] = [];
+		
+		try {
+			console.log('🔄 Starting patient status sync...');
+			
+			// Get all appointments from database
+			const appointmentsSnapshot = await getDocs(collection(db, 'appointments'));
+			const allAppointments = appointmentsSnapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data()
+			}));
+			
+			console.log(`Found ${allAppointments.length} total appointments`);
+			
+			// Group appointments by patientId
+			const appointmentsByPatient = new Map<string, any[]>();
+			allAppointments.forEach((apt: any) => {
+				if (apt.patientId) {
+					if (!appointmentsByPatient.has(apt.patientId)) {
+						appointmentsByPatient.set(apt.patientId, []);
+					}
+					appointmentsByPatient.get(apt.patientId)!.push(apt);
+				}
+			});
+			
+			// Check each patient
+			for (const patient of patients) {
+				if (!patient.id || !patient.patientId) continue;
+				
+				const patientAppointments = appointmentsByPatient.get(patient.patientId) || [];
+				
+				if (patientAppointments.length === 0) continue;
+				
+				// Check if all appointments are completed or cancelled
+				const allCompleted = patientAppointments.every((apt: any) => 
+					apt.status === 'completed' || apt.status === 'cancelled'
+				);
+				
+				// Update patient status if needed
+				if (allCompleted && patient.status !== 'completed') {
+					try {
+						const patientRef = doc(db, 'patients', patient.id);
+						await updateDoc(patientRef, {
+							status: 'completed',
+						});
+						updated++;
+						const logMsg = `✅ Updated ${patient.name} (${patient.patientId}) to completed`;
+						console.log(logMsg);
+						updateLog.push(logMsg);
+					} catch (error) {
+						errors++;
+						const logMsg = `❌ Failed to update ${patient.name} (${patient.patientId}): ${error instanceof Error ? error.message : 'Unknown error'}`;
+						console.error(logMsg);
+						updateLog.push(logMsg);
+					}
+				}
+			}
+			
+			console.log(`✅ Sync complete! Updated ${updated} patient(s).${errors > 0 ? ` ${errors} error(s).` : ''}`);
+			if (updateLog.length > 0) {
+				console.log('Update log:', updateLog);
+			}
+			
+			alert(`Status sync complete!\n\nUpdated: ${updated} patient(s)${errors > 0 ? `\nErrors: ${errors}` : ''}\n\nCheck console for details.`);
+		} catch (error) {
+			console.error('❌ Failed to sync patient statuses:', error);
+			alert(`Failed to sync patient statuses: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			setIsSyncingStatuses(false);
+		}
+	};
+
 	return (
 		<div className="min-h-svh bg-slate-50 px-6 py-10">
 			<div className="mx-auto max-w-6xl space-y-10">
-				<PageHeader
-					title="Patient Management"
-				/>
+				<div className="flex items-center justify-between">
+					<PageHeader
+						title="Patient Management"
+					/>
+					<button
+						type="button"
+						onClick={syncPatientStatuses}
+						disabled={isSyncingStatuses}
+						className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						{isSyncingStatuses ? (
+							<>
+								<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+								Syncing...
+							</>
+						) : (
+							<>
+								<i className="fas fa-sync-alt" />
+								Sync Patient Statuses
+							</>
+						)}
+					</button>
+				</div>
 
 				<div className="border-t border-slate-200" />
 

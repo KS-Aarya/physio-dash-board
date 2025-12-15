@@ -682,7 +682,18 @@ export default function Patients() {
 				(patient.patientId || '').toLowerCase().includes(query) ||
 				(patient.phone || '').toLowerCase().includes(query) ||
 				(patient.email || '').toLowerCase().includes(query);
-			const matchesStatus = statusFilter === 'all' || patient.status === statusFilter;
+			
+			// Status filter: explicitly exclude completed patients when filtering for ongoing
+			let matchesStatus = true;
+			if (statusFilter === 'ongoing') {
+				// When filtering for ongoing, only show patients with status 'ongoing'
+				// Explicitly exclude completed patients
+				matchesStatus = patient.status === 'ongoing';
+			} else if (statusFilter !== 'all') {
+				// For other status filters, match exactly
+				matchesStatus = patient.status === statusFilter;
+			}
+			
 			return matchesSearch && matchesStatus;
 		});
 	}, [patients, searchTerm, statusFilter, showDeletedPatients]);
