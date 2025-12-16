@@ -194,6 +194,9 @@ interface FrontdeskPatient {
 	assignedFrontdeskEmail?: string;
 	packageAmount?: number | null;
 	readyForNewAppointment?: boolean;
+	registeredBy?: string;
+	registeredByName?: string;
+	registeredByEmail?: string;
 }
 
 interface DayAvailability {
@@ -428,6 +431,7 @@ export default function Patients() {
 		assignedDoctor: '',
 	});
 	const [formErrors, setFormErrors] = useState<Partial<Record<keyof typeof formState, string>>>({});
+	const [originalDoctor, setOriginalDoctor] = useState<string>('');
 	const [bookingForm, setBookingForm] = useState<BookingFormState>({
 		patientId: '',
 		doctor: '',
@@ -444,6 +448,15 @@ export default function Patients() {
 	const [registerFormErrors, setRegisterFormErrors] = useState<Partial<Record<keyof RegisterFormState, string>>>({});
 	const [registerSubmitting, setRegisterSubmitting] = useState(false);
 	const [registerNotice, setRegisterNotice] = useState<RegisterNotice | null>(null);
+	const [bookAppointment, setBookAppointment] = useState(false);
+	const [registerAppointmentForm, setRegisterAppointmentForm] = useState({
+		doctor: '',
+		date: '',
+		time: '',
+		duration: 0,
+		notes: '',
+	});
+	const [registerSelectedSlots, setRegisterSelectedSlots] = useState<string[]>([]);
 	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 	const [viewingPatient, setViewingPatient] = useState<FrontdeskPatient | null>(null);
 	const [billing, setBilling] = useState<BillingRecord[]>([]);
@@ -545,6 +558,9 @@ export default function Patients() {
 						readyForNewAppointment: data.readyForNewAppointment === true,
 						deleted: data.deleted === true,
 						deletedAt: deleted ? deleted.toISOString() : (data.deletedAt as string | undefined) || null,
+						registeredBy: data.registeredBy ? String(data.registeredBy) : undefined,
+						registeredByName: data.registeredByName ? String(data.registeredByName) : undefined,
+						registeredByEmail: data.registeredByEmail ? String(data.registeredByEmail) : undefined,
 					} as FrontdeskPatient & { deleted?: boolean; deletedAt?: string | null };
 				});
 				setPatients(mapped);
@@ -1327,6 +1343,92 @@ export default function Patients() {
 		return [...new Set(slots)].sort();
 	}, [appointments, bookingForm.date, bookingForm.doctor, staff]);
 
+	// Available slots for registration appointment form
+	const registerAvailableSlots = useMemo<string[]>(() => {
+		if (!registerAppointmentForm.date || !registerAppointmentForm.doctor) {
+			return [];
+		}
+
+		const staffMember = staff.find(member => member.userName === registerAppointmentForm.doctor);
+		if (!staffMember) {
+			return [];
+		}
+
+		const dayAvailability = staffMember.dateSpecificAvailability?.[registerAppointmentForm.date];
+		if (!dayAvailability || !dayAvailability.enabled || !dayAvailability.slots || dayAvailability.slots.length === 0) {
+			return [];
+		}
+
+		const relevantAppointments = appointments.filter(
+			appointment =>
+				appointment.doctor === registerAppointmentForm.doctor &&
+				appointment.date === registerAppointmentForm.date &&
+				appointment.status !== 'cancelled'
+		);
+
+		const bookedSlotSet = new Set<string>();
+		relevantAppointments.forEach(appointment => {
+			if (!appointment.time) return;
+			const durationMinutes = Math.max(SLOT_INTERVAL_MINUTES, appointment.duration ?? SLOT_INTERVAL_MINUTES);
+			const blocks = Math.ceil(durationMinutes / SLOT_INTERVAL_MINUTES);
+			const startMinutes = timeStringToMinutes(appointment.time);
+			for (let block = 0; block < blocks; block += 1) {
+				const blockStartMinutes = startMinutes + block * SLOT_INTERVAL_MINUTES;
+				bookedSlotSet.add(minutesToTimeString(blockStartMinutes));
+			}
+		});
+
+		const now = new Date();
+		const selectedDate = new Date(`${registerAppointmentForm.date}T00:00:00`);
+		const isToday = selectedDate.toDateString() === now.toDateString();
+		const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+
+		const slots: string[] = [];
+
+		dayAvailability.slots.forEach(slot => {
+			if (!slot.start || !slot.end) return;
+
+			const [startHour, startMinute] = slot.start.split(':').map(Number);
+			const [endHour, endMinute] = slot.end.split(':').map(Number);
+
+			if ([startHour, startMinute, endHour, endMinute].some(value => Number.isNaN(value))) {
+				return;
+			}
+
+			const slotStart = new Date(selectedDate);
+			slotStart.setHours(startHour, startMinute, 0, 0);
+			const slotEnd = new Date(selectedDate);
+			slotEnd.setHours(endHour, endMinute, 0, 0);
+
+			if (slotEnd <= slotStart) {
+				slotEnd.setDate(slotEnd.getDate() + 1);
+			}
+
+			const current = new Date(slotStart);
+			while (current < slotEnd) {
+				const timeString = `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`;
+
+				if (bookedSlotSet.has(timeString)) {
+					current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
+					continue;
+				}
+
+				if (isToday) {
+					const minutesFromMidnight = current.getHours() * 60 + current.getMinutes();
+					if (minutesFromMidnight < currentTimeMinutes) {
+						current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
+						continue;
+					}
+				}
+
+				slots.push(timeString);
+				current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
+			}
+		});
+
+		return [...new Set(slots)].sort();
+	}, [appointments, registerAppointmentForm.date, registerAppointmentForm.doctor, staff]);
+
 	useEffect(() => {
 		if (!bookingForm.doctor) return;
 		if (!doctorOptions.includes(bookingForm.doctor)) {
@@ -1348,6 +1450,20 @@ export default function Patients() {
 			return filtered;
 		});
 	}, [availableSlots]);
+
+	useEffect(() => {
+		setRegisterSelectedSlots(prevSelected => {
+			if (prevSelected.length === 0) return prevSelected;
+			const filtered = prevSelected.filter(slot => registerAvailableSlots.includes(slot));
+			if (filtered.length === prevSelected.length) return prevSelected;
+			setRegisterAppointmentForm(prev => ({
+				...prev,
+				time: filtered[0] ?? '',
+				duration: filtered.length > 0 ? filtered.length * SLOT_INTERVAL_MINUTES : 0,
+			}));
+			return filtered;
+		});
+	}, [registerAvailableSlots]);
 
 	const handleSlotToggle = (slot: string) => {
 		setSelectedSlots(prevSelected => {
@@ -1380,6 +1496,46 @@ export default function Patients() {
 			}
 
 			setBookingForm(prev => ({
+				...prev,
+				time: nextSelection[0] ?? '',
+				duration: nextSelection.length > 0 ? nextSelection.length * SLOT_INTERVAL_MINUTES : 0,
+			}));
+
+			return nextSelection;
+		});
+	};
+
+	const handleRegisterSlotToggle = (slot: string) => {
+		setRegisterSelectedSlots(prevSelected => {
+			let nextSelection: string[];
+			if (prevSelected.includes(slot)) {
+				nextSelection = prevSelected.filter(item => item !== slot);
+			} else {
+				nextSelection = [...prevSelected, slot];
+			}
+
+			nextSelection = [...nextSelection].sort((a, b) => a.localeCompare(b));
+
+			if (nextSelection.length > 1) {
+				const isContiguous = nextSelection.every((time, index) => {
+					if (index === 0) return true;
+					const previousTime = nextSelection[index - 1];
+					return (
+						timeStringToMinutes(time) - timeStringToMinutes(previousTime) === SLOT_INTERVAL_MINUTES
+					);
+				});
+
+				if (!isContiguous) {
+					nextSelection = [slot];
+				}
+			}
+
+			const maxSlots = Math.max(1, Math.floor(MAX_BLOCK_DURATION_MINUTES / SLOT_INTERVAL_MINUTES));
+			if (nextSelection.length > maxSlots) {
+				nextSelection = nextSelection.slice(-maxSlots);
+			}
+
+			setRegisterAppointmentForm(prev => ({
 				...prev,
 				time: nextSelection[0] ?? '',
 				duration: nextSelection.length > 0 ? nextSelection.length * SLOT_INTERVAL_MINUTES : 0,
@@ -1440,12 +1596,30 @@ export default function Patients() {
 const handleOpenRegisterModal = () => {
 	setRegisterForm(REGISTER_FORM_INITIAL_STATE);
 	setRegisterFormErrors({});
+	setBookAppointment(false);
+	setRegisterAppointmentForm({
+		doctor: '',
+		date: '',
+		time: '',
+		duration: 0,
+		notes: '',
+	});
+	setRegisterSelectedSlots([]);
 	setShowRegisterModal(true);
 };
 
 const handleCloseRegisterModal = () => {
 	setShowRegisterModal(false);
 	setRegisterFormErrors({});
+	setBookAppointment(false);
+	setRegisterAppointmentForm({
+		doctor: '',
+		date: '',
+		time: '',
+		duration: 0,
+		notes: '',
+	});
+	setRegisterSelectedSlots([]);
 };
 
 const handleRegisterFormChange =
@@ -1483,6 +1657,20 @@ const validateRegisterForm = () => {
 	}
 	if (!registerForm.patientType) {
 		errors.patientType = 'Please select Type of Organization.';
+	}
+	if (bookAppointment) {
+		if (!registerAppointmentForm.doctor) {
+			alert('Please select a clinician for the appointment.');
+			return false;
+		}
+		if (!registerAppointmentForm.date) {
+			alert('Please select a date for the appointment.');
+			return false;
+		}
+		if (!registerAppointmentForm.time || !registerAppointmentForm.duration) {
+			alert('Please select a time slot for the appointment.');
+			return false;
+		}
 	}
 
 	setRegisterFormErrors(errors);
@@ -1560,9 +1748,132 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 		if (smsSent) confirmations.push('SMS');
 		const confirmationText = confirmations.length ? ` Confirmation sent via ${confirmations.join(' and ')}.` : '';
 
+		// If booking appointment is enabled, create the appointment
+		if (bookAppointment && registerAppointmentForm.doctor && registerAppointmentForm.date && registerAppointmentForm.time && registerAppointmentForm.duration) {
+			try {
+				const staffMember = staff.find(member => member.userName === registerAppointmentForm.doctor);
+				if (staffMember) {
+					const appointmentId = `APT${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+					await addDoc(collection(db, 'appointments'), {
+						appointmentId,
+						patientId,
+						patient: registerForm.fullName.trim(),
+						doctor: registerAppointmentForm.doctor,
+						staffId: staffMember.id,
+						date: registerAppointmentForm.date,
+						time: registerAppointmentForm.time,
+						duration: registerAppointmentForm.duration,
+						status: 'pending' as AdminAppointmentStatus,
+						notes: registerAppointmentForm.notes?.trim() || null,
+						isConsultation: true, // First appointment is always a consultation
+						createdAt: serverTimestamp(),
+					});
+
+					try {
+						const billingId = `BILL-${appointmentId}`;
+						await addDoc(collection(db, 'billing'), {
+							billingId,
+							appointmentId,
+							patient: registerForm.fullName.trim(),
+							patientId,
+							doctor: registerAppointmentForm.doctor,
+							amount: APPOINTMENT_BOOKING_CHARGE,
+							amountPaid: 0,
+							date: registerAppointmentForm.date,
+							status: 'Pending',
+							paymentMode: null,
+							utr: null,
+							createdAt: serverTimestamp(),
+							updatedAt: serverTimestamp(),
+						});
+					} catch (billingError) {
+						console.error('Failed to create booking charge', billingError);
+					}
+
+					// Update patient with assigned doctor
+					const patientQuery = query(collection(db, 'patients'), where('patientId', '==', patientId));
+					const patientSnapshot = await getDocs(patientQuery);
+					if (!patientSnapshot.empty) {
+						const patientDocRef = doc(db, 'patients', patientSnapshot.docs[0].id);
+						await updateDoc(patientDocRef, {
+							assignedDoctor: registerAppointmentForm.doctor,
+							status: 'ongoing' as AdminPatientStatus,
+							readyForNewAppointment: false,
+						});
+					}
+
+					// Send appointment confirmation emails/SMS
+					if (trimmedEmail) {
+						try {
+							await sendEmailNotification({
+								to: trimmedEmail,
+								subject: `Appointment Scheduled - ${registerAppointmentForm.date}`,
+								template: 'appointment-created',
+								data: {
+									patientName: registerForm.fullName.trim(),
+									patientEmail: trimmedEmail,
+									patientId,
+									doctor: registerAppointmentForm.doctor,
+									date: registerAppointmentForm.date,
+									time: registerAppointmentForm.time,
+									appointmentId,
+								},
+							});
+						} catch (emailError) {
+							console.error('Failed to send appointment confirmation email:', emailError);
+						}
+					}
+
+					if (trimmedPhone && isValidPhoneNumber(trimmedPhone)) {
+						try {
+							await sendSMSNotification({
+								to: trimmedPhone,
+								template: 'appointment-created',
+								data: {
+									patientName: registerForm.fullName.trim(),
+									patientPhone: trimmedPhone,
+									patientId,
+									doctor: registerAppointmentForm.doctor,
+									date: registerAppointmentForm.date,
+									time: registerAppointmentForm.time,
+									appointmentId,
+								},
+							});
+						} catch (smsError) {
+							console.error('Failed to send appointment confirmation SMS:', smsError);
+						}
+					}
+
+					if (staffMember.userEmail) {
+						try {
+							await sendEmailNotification({
+								to: staffMember.userEmail,
+								subject: `New Appointment - ${registerForm.fullName.trim()} on ${registerAppointmentForm.date}`,
+								template: 'appointment-created',
+								data: {
+									patientName: registerForm.fullName.trim(),
+									patientEmail: trimmedEmail || staffMember.userEmail,
+									patientId,
+									doctor: registerAppointmentForm.doctor,
+									date: registerAppointmentForm.date,
+									time: registerAppointmentForm.time,
+									appointmentId,
+								},
+							});
+						} catch (emailError) {
+							console.error('Failed to notify staff member:', emailError);
+						}
+					}
+				}
+			} catch (appointmentError) {
+				console.error('Failed to create appointment during registration', appointmentError);
+				// Don't fail the registration if appointment creation fails
+			}
+		}
+
 		setRegisterNotice({
 			type: 'success',
-			message: `${registerForm.fullName.trim()} registered with ID ${patientId}.${confirmationText}`,
+			message: `${registerForm.fullName.trim()} registered with ID ${patientId}.${bookAppointment ? ' Appointment booked successfully.' : ''}${confirmationText}`,
 		});
 		setRegisterForm(REGISTER_FORM_INITIAL_STATE);
 		handleCloseRegisterModal();
@@ -1845,6 +2156,8 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 		const patient = patients.find(p => p.id === id);
 		if (!patient) return;
 		setEditingId(id);
+		const currentDoctor = patient.assignedDoctor || '';
+		setOriginalDoctor(currentDoctor);
 		setFormState({
 			patientId: patient.patientId,
 			name: patient.name,
@@ -1858,7 +2171,7 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 			patientType: patient.patientType,
 			paymentType: patient.paymentType,
 			paymentDescription: patient.paymentDescription || '',
-			assignedDoctor: patient.assignedDoctor || '',
+			assignedDoctor: currentDoctor,
 		});
 		setFormErrors({});
 		setIsDialogOpen(true);
@@ -1867,6 +2180,7 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 	const closeDialog = () => {
 		setIsDialogOpen(false);
 		setEditingId(null);
+		setOriginalDoctor('');
 		setFormState({
 			patientId: '',
 			name: '',
@@ -1920,6 +2234,18 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 		if (!validateForm() || !editingId) return;
 
 		try {
+			const newDoctor = formState.assignedDoctor?.trim() || null;
+			const doctorChanged = newDoctor !== originalDoctor;
+
+			// If doctor changed, validate the new doctor exists
+			if (doctorChanged && newDoctor) {
+				const newStaffMember = staff.find(member => member.userName === newDoctor);
+				if (!newStaffMember) {
+					alert('Selected clinician not found. Please select a valid clinician.');
+					return;
+				}
+			}
+
 			const patientData = {
 				patientId: formState.patientId.trim(),
 				name: formState.name.trim(),
@@ -1933,12 +2259,43 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 				patientType: formState.patientType,
 				paymentType: formState.patientType === 'PAID' ? formState.paymentType : 'without',
 				paymentDescription: formState.patientType === 'PAID' ? (formState.paymentDescription?.trim() || null) : null,
-				assignedDoctor: formState.assignedDoctor?.trim() || null,
+				assignedDoctor: newDoctor,
 			};
 
+			// Update patient record
 			await updateDoc(doc(db, 'patients', editingId), patientData);
+
+			// If doctor changed, update all appointments for this patient
+			if (doctorChanged && newDoctor) {
+				const newStaffMember = staff.find(member => member.userName === newDoctor);
+				if (newStaffMember) {
+					const patient = patients.find(p => p.id === editingId);
+					if (patient) {
+						// Query all appointments for this patient
+						const appointmentsQuery = query(
+							collection(db, 'appointments'),
+							where('patientId', '==', patient.patientId)
+						);
+						const appointmentsSnapshot = await getDocs(appointmentsQuery);
+
+						if (appointmentsSnapshot.docs.length > 0) {
+							// Update all appointments in a batch
+							const batch = writeBatch(db);
+							appointmentsSnapshot.docs.forEach(appointmentDoc => {
+								batch.update(appointmentDoc.ref, {
+									doctor: newDoctor,
+									staffId: newStaffMember.id,
+								});
+							});
+							await batch.commit();
+							console.log(`Updated ${appointmentsSnapshot.docs.length} appointment(s) for patient ${patient.patientId} to new doctor ${newDoctor}`);
+						}
+					}
+				}
+			}
+
 			closeDialog();
-			alert(`Patient "${formState.name.trim()}" has been updated successfully!`);
+			alert(`Patient "${formState.name.trim()}" has been updated successfully!${doctorChanged ? ' All appointments have been reassigned to the new clinician.' : ''}`);
 		} catch (error) {
 			console.error('Failed to update patient', error);
 			alert(`Failed to update patient: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -2326,7 +2683,17 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 										return (
 											<tr key={patient.id}>
 											<td className="px-4 py-4 text-sm font-medium text-slate-800">{patient.patientId || '—'}</td>
-											<td className="px-4 py-4 text-sm text-slate-700">{patient.name || 'Unnamed'}</td>
+											<td className="px-4 py-4">
+												<div className="space-y-1">
+													<p className="text-sm text-slate-700">{patient.name || 'Unnamed'}</p>
+													{patient.registeredByName && (
+														<span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+															<i className="fas fa-user-md text-[10px]" aria-hidden="true" />
+															Registered by {patient.registeredByName}
+														</span>
+													)}
+												</div>
+											</td>
 											<td className="px-4 py-4 text-sm text-slate-600">{patient.patientType || '—'}</td>
 											<td className="px-4 py-4 text-sm text-slate-600">{patient.assignedDoctor || '—'}</td>
 											<td className="px-4 py-4 text-xs text-slate-500">{formatDateLabel(patient.registeredAt)}</td>
@@ -2617,6 +2984,164 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 									)}
 								</div>
 							</div>
+
+							{/* Book Appointment Option */}
+							<div className="grid gap-4 md:grid-cols-12">
+								<div className="md:col-span-12">
+									<label className="flex items-center gap-2 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={bookAppointment}
+											onChange={(e) => {
+												setBookAppointment(e.target.checked);
+												if (!e.target.checked) {
+													setRegisterAppointmentForm({
+														doctor: '',
+														date: '',
+														time: '',
+														duration: 0,
+														notes: '',
+													});
+													setRegisterSelectedSlots([]);
+												}
+											}}
+											className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+											disabled={registerSubmitting}
+										/>
+										<span className="text-sm font-medium text-slate-700">
+											Book appointment after registration
+										</span>
+									</label>
+								</div>
+							</div>
+
+							{/* Appointment Booking Fields */}
+							{bookAppointment && (
+								<div className="rounded-xl border border-sky-200 bg-sky-50 p-4 space-y-4">
+									<h3 className="text-sm font-semibold text-slate-900">Appointment Details</h3>
+									
+									<div className="grid gap-4 sm:grid-cols-2">
+										<div>
+											<label className="block text-sm font-medium text-slate-700">
+												Clinician <span className="text-rose-500">*</span>
+											</label>
+											<select
+												value={registerAppointmentForm.doctor}
+												onChange={(e) => {
+													setRegisterAppointmentForm(prev => ({
+														...prev,
+														doctor: e.target.value,
+														time: '',
+														duration: 0,
+													}));
+													setRegisterSelectedSlots([]);
+												}}
+												className="select-base mt-2"
+												disabled={registerSubmitting}
+												required={bookAppointment}
+											>
+												<option value="">{doctorOptions.length ? 'Select clinician' : 'No clinicians available'}</option>
+												{doctorOptions.map(option => (
+													<option key={option} value={option}>
+														{option}
+													</option>
+												))}
+											</select>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-slate-700">
+												Date <span className="text-rose-500">*</span>
+											</label>
+											<input
+												type="date"
+												className="input-base mt-2"
+												value={registerAppointmentForm.date}
+												onChange={(e) => {
+													setRegisterAppointmentForm(prev => ({
+														...prev,
+														date: e.target.value,
+														time: '',
+														duration: 0,
+													}));
+													setRegisterSelectedSlots([]);
+												}}
+												min={new Date().toISOString().split('T')[0]}
+												disabled={registerSubmitting}
+												required={bookAppointment}
+											/>
+										</div>
+									</div>
+
+									<div>
+										<label className="block text-sm font-medium text-slate-700">
+											Time Slot <span className="text-rose-500">*</span>
+										</label>
+										{!registerAppointmentForm.doctor && !registerAppointmentForm.date ? (
+											<p className="mt-2 text-xs text-slate-500">Select a clinician and date to view available time slots.</p>
+										) : !registerAppointmentForm.doctor ? (
+											<p className="mt-2 text-xs text-slate-500">Select a clinician to view available time slots.</p>
+										) : !registerAppointmentForm.date ? (
+											<p className="mt-2 text-xs text-slate-500">Select a date to view available time slots.</p>
+										) : registerAvailableSlots.length === 0 ? (
+											<div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+												No slots available for {registerAppointmentForm.doctor} on {registerAppointmentForm.date}. Pick another date or clinician.
+											</div>
+										) : (
+											<div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+												{registerAvailableSlots.map(slot => {
+													const slotEnd = minutesToTimeString(timeStringToMinutes(slot) + SLOT_INTERVAL_MINUTES);
+													const isSelected = registerSelectedSlots.includes(slot);
+													return (
+														<button
+															type="button"
+															key={slot}
+															onClick={() => handleRegisterSlotToggle(slot)}
+															className={`rounded-xl border px-3 py-2 text-sm font-medium shadow-sm transition ${
+																isSelected
+																	? 'border-sky-500 bg-sky-50 text-sky-800 ring-2 ring-sky-200'
+																	: 'border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50'
+															}`}
+															aria-pressed={isSelected}
+															disabled={registerSubmitting}
+														>
+															<div className="flex items-center justify-between">
+																<div>
+																	<p className="font-semibold">{slot} – {slotEnd}</p>
+																	<p className="text-xs text-slate-500">30 minutes</p>
+																</div>
+																<span className={`text-xs ${isSelected ? 'text-sky-600' : 'text-slate-400'}`}>
+																	<i
+																		className={`fas ${isSelected ? 'fa-check-circle' : 'fa-clock'}`}
+																		aria-hidden="true"
+																	/>
+																</span>
+															</div>
+														</button>
+													);
+												})}
+											</div>
+										)}
+										{registerSelectedSlots.length > 0 && (
+											<p className="mt-2 text-xs font-medium text-slate-600">
+												Selected duration:{' '}
+												<span className="text-slate-900">{formatDurationLabel(registerSelectedSlots.length * SLOT_INTERVAL_MINUTES)}</span>
+											</p>
+										)}
+									</div>
+
+									<div>
+										<label className="block text-sm font-medium text-slate-700">Notes (optional)</label>
+										<textarea
+											className="input-base mt-2"
+											rows={3}
+											value={registerAppointmentForm.notes}
+											onChange={(e) => setRegisterAppointmentForm(prev => ({ ...prev, notes: e.target.value }))}
+											placeholder="Add any notes for the clinician..."
+											disabled={registerSubmitting}
+										/>
+									</div>
+								</div>
+							)}
 
 							<footer className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
 								<button type="button" onClick={handleCloseRegisterModal} className="btn-secondary" disabled={registerSubmitting}>
@@ -3216,13 +3741,23 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 								<div className="grid gap-4 md:grid-cols-12">
 									<div className="md:col-span-6">
 										<label className="block text-sm font-medium text-slate-700">Assigned Doctor</label>
-										<input
-											type="text"
+										<select
 											value={formState.assignedDoctor}
 											onChange={handleFormChange('assignedDoctor')}
-											className="input-base"
-											placeholder="Doctor name"
-										/>
+											className="select-base"
+										>
+											<option value="">No doctor assigned</option>
+											{doctorOptions.map(option => (
+												<option key={option} value={option}>
+													{option}
+												</option>
+											))}
+										</select>
+										{formState.assignedDoctor && formState.assignedDoctor !== originalDoctor && (
+											<p className="mt-1 text-xs text-amber-600">
+												All appointments for this patient will be reassigned to the new clinician.
+											</p>
+										)}
 									</div>
 								</div>
 							</div>

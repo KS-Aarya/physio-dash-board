@@ -6,7 +6,7 @@ import { collection, doc, onSnapshot, updateDoc, deleteDoc, addDoc, serverTimest
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import PageHeader from '@/components/PageHeader';
-import type { AdminAppointmentStatus, AdminPatientStatus } from '@/lib/adminMockData';
+import type { AdminAppointmentStatus, AdminPatientStatus, AdminGenderOption } from '@/lib/adminMockData';
 import type { PatientRecord } from '@/lib/types';
 import { sendEmailNotification } from '@/lib/email';
 import { sendSMSNotification, isValidPhoneNumber } from '@/lib/sms';
@@ -16,6 +16,7 @@ import { normalizeSessionAllowance } from '@/lib/sessionAllowance';
 import { recordSessionUsageForAppointment } from '@/lib/sessionAllowanceClient';
 import type { RecordSessionUsageResult } from '@/lib/sessionAllowanceClient';
 import EditReportModal from '@/components/clinical-team/EditReportModal';
+import { createInitialSessionAllowance } from '@/lib/sessionAllowance';
 
 interface FrontdeskAppointment {
 	id: string;
@@ -75,6 +76,9 @@ type PatientRecordWithSessions = PatientRecord & {
 	concessionPercent?: number;
 	paymentType?: string;
 	packageDescription?: string;
+	registeredBy?: string;
+	registeredByName?: string;
+	registeredByEmail?: string;
 };
 
 interface BookingForm {
@@ -118,6 +122,40 @@ function formatDateLabel(value: string) {
 function normalize(value?: string | null) {
 	return value?.trim().toLowerCase() ?? '';
 }
+
+async function generatePatientId(): Promise<string> {
+	const prefix = 'CSS';
+	const year = new Date().getFullYear();
+	const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+	const patientsSnapshot = await getDocs(collection(db, 'patients'));
+	const existingIds = new Set(patientsSnapshot.docs.map(docSnap => docSnap.data().patientId).filter(Boolean));
+
+	let candidate = '';
+	do {
+		let randomPart = '';
+		for (let index = 0; index < 7; index += 1) {
+			randomPart += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+		}
+		candidate = `${prefix}${year}${randomPart}`;
+	} while (existingIds.has(candidate));
+
+	return candidate;
+}
+
+const PHONE_REGEX = /^[0-9]{10,15}$/;
+const GENDER_OPTIONS: Array<{ value: AdminGenderOption; label: string }> = [
+	{ value: '', label: 'Select' },
+	{ value: 'Male', label: 'Male' },
+	{ value: 'Female', label: 'Female' },
+	{ value: 'Other', label: 'Other' },
+];
+const PATIENT_TYPE_OPTIONS: Array<{ value: 'DYES' | 'VIP' | 'GETHNA' | 'PAID' | ''; label: string }> = [
+	{ value: 'DYES', label: 'DYES' },
+	{ value: 'VIP', label: 'VIP' },
+	{ value: 'PAID', label: 'PAID' },
+	{ value: 'GETHNA', label: 'GETHNA' },
+];
 
 export default function Appointments() {
 	const { user } = useAuth();
@@ -163,6 +201,20 @@ export default function Appointments() {
 	const [showReportModal, setShowReportModal] = useState(false);
 	const [reportModalPatientId, setReportModalPatientId] = useState<string | null>(null);
 	const [packageAppointments, setPackageAppointments] = useState<Record<string, FrontdeskAppointment[]>>({});
+	const [showRegisterModal, setShowRegisterModal] = useState(false);
+	const [registerForm, setRegisterForm] = useState({
+		fullName: '',
+		dob: '',
+		gender: '' as AdminGenderOption,
+		phone: '',
+		email: '',
+		address: '',
+		patientType: '' as 'DYES' | 'VIP' | 'GETHNA' | 'PAID' | '',
+	});
+	const [registerFormErrors, setRegisterFormErrors] = useState<Partial<Record<keyof typeof registerForm, string>>>({});
+	const [registerSubmitting, setRegisterSubmitting] = useState(false);
+	const [registerNotice, setRegisterNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+	const [newlyRegisteredPatientId, setNewlyRegisteredPatientId] = useState<string | null>(null);
 
 	// Load appointments from Firestore
 	useEffect(() => {
@@ -239,6 +291,9 @@ export default function Appointments() {
 						paymentType: data.paymentType ? String(data.paymentType) : undefined,
 						packageName: data.packageName ? String(data.packageName) : undefined,
 						packageDescription: data.packageDescription ? String(data.packageDescription) : undefined,
+						registeredBy: data.registeredBy ? String(data.registeredBy) : undefined,
+						registeredByName: data.registeredByName ? String(data.registeredByName) : undefined,
+						registeredByEmail: data.registeredByEmail ? String(data.registeredByEmail) : undefined,
 					} as PatientRecordWithSessions;
 				});
 				setPatients(mapped);
@@ -283,6 +338,33 @@ export default function Appointments() {
 
 		return () => unsubscribe();
 	}, []);
+
+	// Auto-open booking modal when a newly registered patient appears in the list
+	useEffect(() => {
+		if (!newlyRegisteredPatientId) return;
+
+		// Find the newly registered patient in the patients list
+		const newPatient = patients.find(p => p.patientId === newlyRegisteredPatientId);
+		if (newPatient) {
+			// Pre-populate booking form with the new patient
+			setBookingForm({
+				patientIds: [newlyRegisteredPatientId],
+				staffId: '',
+				date: '',
+				time: '',
+				selectedTimes: [],
+				selectedAppointments: new Map(),
+				notes: '',
+				addPackage: false,
+				packageSessions: '',
+				packageAmount: '',
+				withConsultation: false,
+				consultationDiscount: '0',
+			});
+			setShowBookingModal(true);
+			setNewlyRegisteredPatientId(null); // Reset after opening modal
+		}
+	}, [patients, newlyRegisteredPatientId]);
 
 	// Get day of week from date string
 	const getDayOfWeek = (dateString: string): DayOfWeek | null => {
@@ -589,13 +671,26 @@ export default function Appointments() {
 		return groupedByPatient.reduce((sum, group) => sum + group.appointments.length, 0);
 	}, [groupedByPatient]);
 
-	// Only show patients who already have appointments (frontdesk assigns first, clinical team handles rest)
+	// Filter patients to show only those registered by current user OR assigned to current user
 	const availablePatients = useMemo(() => {
-		const patientsWithAppointments = new Set(
-			appointments.map(apt => apt.patientId)
-		);
-		return patients.filter(patient => patientsWithAppointments.has(patient.patientId));
-	}, [patients, appointments]);
+		if (!user) return [];
+		
+		const currentUserId = user.uid || '';
+		const currentUserDisplayName = normalize(user.displayName || user.email?.split('@')[0] || '');
+		
+		// Filter patients based on:
+		// 1. Registered by current user (registeredBy matches user UID), OR
+		// 2. Assigned to current user (assignedDoctor matches user display name, normalized)
+		return patients.filter(patient => {
+			// Check if patient was registered by current user
+			const isRegisteredByUser = patient.registeredBy === currentUserId;
+			
+			// Check if patient is assigned to current user
+			const isAssignedToUser = patient.assignedDoctor && normalize(patient.assignedDoctor) === currentUserDisplayName;
+			
+			return isRegisteredByUser || isAssignedToUser;
+		});
+	}, [patients, user]);
 
 	// Filter appointments based on showAllAppointments
 	const filteredAppointmentsForCounts = useMemo(() => {
@@ -985,6 +1080,7 @@ export default function Appointments() {
 
 	const handleCloseBookingModal = () => {
 		setShowBookingModal(false);
+		setNewlyRegisteredPatientId(null); // Clear newly registered patient ID when closing modal
 		setBookingForm({
 			patientIds: [],
 			staffId: '',
@@ -1056,13 +1152,19 @@ export default function Appointments() {
 		}
 
 		// Check if any selected patient has no existing appointments (consultation check)
+		// Exception: Allow booking if the patient was registered by the current user
 		const patientsWithoutAppointments = selectedPatients.filter(patient => {
-			return appointments.filter(a => a.patientId === patient.patientId).length === 0;
+			const hasAppointments = appointments.filter(a => a.patientId === patient.patientId).length > 0;
+			if (hasAppointments) return false;
+			
+			// Allow if patient was registered by current user
+			const isRegisteredByUser = patient.registeredBy === user?.uid;
+			return !isRegisteredByUser;
 		});
 
 		if (patientsWithoutAppointments.length > 0) {
 			const patientNames = patientsWithoutAppointments.map(p => p.name).join(', ');
-			alert(`Consultations can only be created from the Front Desk. The following patient(s) need their first appointment assigned by the frontdesk: ${patientNames}`);
+			alert(`Consultations can only be created from the Front Desk or by the clinician who registered the patient. The following patient(s) need their first appointment assigned by the frontdesk: ${patientNames}`);
 			return;
 		}
 
@@ -1114,6 +1216,10 @@ export default function Appointments() {
 			for (const selectedPatient of selectedPatients) {
 				const patientAppointments: string[] = [];
 				
+				// Check if this is the patient's first appointment
+				const patientExistingAppointments = appointments.filter(a => a.patientId === selectedPatient.patientId);
+				const isFirstAppointment = patientExistingAppointments.length === 0;
+				
 				for (const apt of allAppointments) {
 					for (const time of apt.times) {
 						// Generate unique appointment ID for each
@@ -1129,7 +1235,7 @@ export default function Appointments() {
 							time: time,
 							status: 'pending' as AdminAppointmentStatus,
 							notes: bookingForm.notes?.trim() || null,
-							isConsultation: false, // Clinical team cannot create consultations
+							isConsultation: isFirstAppointment, // Mark as consultation if it's the patient's first appointment
 							createdAt: serverTimestamp(),
 						});
 
@@ -1298,6 +1404,145 @@ export default function Appointments() {
 		}
 	};
 
+	const validateRegisterForm = () => {
+		const errors: Partial<Record<keyof typeof registerForm, string>> = {};
+		if (!registerForm.fullName.trim()) {
+			errors.fullName = 'Please enter the patient\'s full name.';
+		}
+		if (!registerForm.dob) {
+			errors.dob = 'Please provide the date of birth.';
+		}
+		if (!registerForm.gender) {
+			errors.gender = 'Please select gender.';
+		}
+		if (!registerForm.phone.trim()) {
+			errors.phone = 'Please enter a valid phone number (10-15 digits).';
+		} else if (!PHONE_REGEX.test(registerForm.phone.trim())) {
+			errors.phone = 'Please enter a valid phone number (10-15 digits).';
+		}
+		if (registerForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email)) {
+			errors.email = 'Please enter a valid email address.';
+		}
+		if (!registerForm.patientType) {
+			errors.patientType = 'Please select Type of Organization.';
+		}
+
+		setRegisterFormErrors(errors);
+		return Object.keys(errors).length === 0;
+	};
+
+	const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (!validateRegisterForm() || registerSubmitting) return;
+
+		setRegisterSubmitting(true);
+		try {
+			const patientId = await generatePatientId();
+			const trimmedEmail = registerForm.email.trim();
+			const trimmedPhone = registerForm.phone.trim();
+			
+			// Get clinician info for registeredBy field
+			const clinicianName = user?.displayName || user?.email?.split('@')[0] || 'Clinical Team';
+			const clinicianId = user?.uid || '';
+			const clinicianEmail = user?.email || '';
+
+			const patientData = {
+				patientId,
+				name: registerForm.fullName.trim(),
+				dob: registerForm.dob,
+				gender: registerForm.gender,
+				phone: trimmedPhone,
+				email: trimmedEmail || null,
+				address: registerForm.address.trim() || null,
+				complaint: '',
+				status: 'pending' as AdminPatientStatus,
+				registeredAt: serverTimestamp(),
+				patientType: registerForm.patientType as 'DYES' | 'VIP' | 'GETHNA' | 'PAID',
+				paymentType: 'without' as 'with' | 'without',
+				paymentDescription: null,
+				packageAmount: null,
+				sessionAllowance: registerForm.patientType === 'DYES' ? createInitialSessionAllowance() : null,
+				// Add registeredBy fields
+				registeredBy: clinicianId,
+				registeredByName: clinicianName,
+				registeredByEmail: clinicianEmail,
+			};
+
+			await addDoc(collection(db, 'patients'), patientData);
+
+			// Send registration email if email is provided
+			let emailSent = false;
+			if (trimmedEmail) {
+				try {
+					const emailResult = await sendEmailNotification({
+						to: trimmedEmail,
+						subject: `Welcome to Centre For Sports Science - Patient ID: ${patientId}`,
+						template: 'patient-registered',
+						data: {
+							patientName: registerForm.fullName.trim(),
+							patientEmail: trimmedEmail,
+							patientId,
+						},
+					});
+					emailSent = emailResult.success;
+				} catch (emailError) {
+					console.error('Failed to send registration email:', emailError);
+				}
+			}
+
+			// Send registration SMS if phone is provided
+			let smsSent = false;
+			if (trimmedPhone && isValidPhoneNumber(trimmedPhone)) {
+				try {
+					const smsResult = await sendSMSNotification({
+						to: trimmedPhone,
+						template: 'patient-registered',
+						data: {
+							patientName: registerForm.fullName.trim(),
+							patientPhone: trimmedPhone,
+							patientId,
+						},
+					});
+					smsSent = smsResult.success;
+				} catch (smsError) {
+					console.error('Failed to send registration SMS:', smsError);
+				}
+			}
+
+			const confirmations: string[] = [];
+			if (emailSent) confirmations.push('email');
+			if (smsSent) confirmations.push('SMS');
+			const confirmationText = confirmations.length ? ` Confirmation sent via ${confirmations.join(' and ')}.` : '';
+
+			setRegisterNotice({
+				type: 'success',
+				message: `${registerForm.fullName.trim()} registered with ID ${patientId}.${confirmationText}`,
+			});
+			setRegisterForm({
+				fullName: '',
+				dob: '',
+				gender: '' as AdminGenderOption,
+				phone: '',
+				email: '',
+				address: '',
+				patientType: '' as 'DYES' | 'VIP' | 'GETHNA' | 'PAID' | '',
+			});
+			setRegisterFormErrors({});
+			setShowRegisterModal(false);
+
+			// Set the newly registered patient ID to trigger automatic booking modal
+			setNewlyRegisteredPatientId(patientId);
+		} catch (error) {
+			console.error('Failed to register patient', error);
+			setRegisterNotice({
+				type: 'error',
+				message: 'Failed to register patient. Please try again.',
+			});
+		} finally {
+			setRegisterSubmitting(false);
+		}
+	};
+
 	const handleAddPackage = async () => {
 		if (!packagePatientId) return;
 
@@ -1439,15 +1684,21 @@ export default function Appointments() {
 	return (
 		<div className="min-h-svh bg-slate-50 px-6 py-10">
 			<div className="mx-auto max-w-6xl space-y-10">
-				<PageHeader
-					title="Patient Management"
-					actions={
+			<PageHeader
+				title="Patient Management"
+				actions={
+					<div className="flex gap-2">
+						<button type="button" onClick={() => setShowRegisterModal(true)} className="btn-primary">
+							<i className="fas fa-user-plus text-xs" aria-hidden="true" />
+							Register Patient
+						</button>
 						<button type="button" onClick={handleOpenBookingModal} className="btn-primary">
 							<i className="fas fa-plus text-xs" aria-hidden="true" />
 							Book Appointment
 						</button>
-					}
-				/>
+					</div>
+				}
+			/>
 
 				<div className="border-t border-slate-200" />
 
@@ -1724,7 +1975,7 @@ export default function Appointments() {
 									</label>
 									{availablePatients.length === 0 ? (
 										<div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-											<p>No patients available. Patients must have their first appointment assigned by the frontdesk before clinical team can schedule additional appointments.</p>
+											<p>No patients available. You can only book appointments for patients you have registered or patients assigned to you.</p>
 										</div>
 									) : (
 										<div className="mt-2 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white p-3">
@@ -2614,6 +2865,249 @@ export default function Appointments() {
 					}}
 					editable={true}
 				/>
+			)}
+
+			{/* Register Patient Modal */}
+			{showRegisterModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-6">
+					<div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+						<header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+							<div>
+								<h2 className="text-lg font-semibold text-slate-900">Register New Patient</h2>
+								<p className="text-xs text-slate-500">Capture details and generate an ID instantly</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => {
+									setShowRegisterModal(false);
+									setRegisterForm({
+										fullName: '',
+										dob: '',
+										gender: '' as AdminGenderOption,
+										phone: '',
+										email: '',
+										address: '',
+										patientType: '' as 'DYES' | 'VIP' | 'GETHNA' | 'PAID' | '',
+									});
+									setRegisterFormErrors({});
+									setRegisterNotice(null);
+								}}
+								className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:bg-slate-100 focus-visible:text-slate-600 focus-visible:outline-none"
+								aria-label="Close dialog"
+								disabled={registerSubmitting}
+							>
+								<i className="fas fa-times" aria-hidden="true" />
+							</button>
+						</header>
+						{registerNotice && (
+							<div
+								className={`mx-6 mt-4 flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm ${
+									registerNotice.type === 'success'
+										? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+										: 'border-rose-200 bg-rose-50 text-rose-700'
+								}`}
+							>
+								<p>{registerNotice.message}</p>
+								<button
+									type="button"
+									onClick={() => setRegisterNotice(null)}
+									className="rounded-full p-2 text-current transition hover:bg-white/40 focus-visible:outline-none"
+									aria-label="Dismiss message"
+								>
+									<i className="fas fa-times" aria-hidden="true" />
+								</button>
+							</div>
+						)}
+						<form onSubmit={handleRegisterPatient} className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-4">
+							<div className="grid gap-4 md:grid-cols-12">
+								<div className="md:col-span-6">
+									<label className="block text-sm font-medium text-slate-700">
+										Full Name <span className="text-rose-600">*</span>
+									</label>
+									<input
+										type="text"
+										value={registerForm.fullName}
+										onChange={(e) => {
+											setRegisterForm(prev => ({ ...prev, fullName: e.target.value }));
+											setRegisterFormErrors(prev => ({ ...prev, fullName: undefined }));
+										}}
+										className="input-base"
+										placeholder="Patient name"
+										autoComplete="name"
+										required
+									/>
+									{registerFormErrors.fullName && (
+										<p className="mt-1 text-xs text-rose-500">{registerFormErrors.fullName}</p>
+									)}
+								</div>
+								<div className="md:col-span-3">
+									<label className="block text-sm font-medium text-slate-700">
+										Date of Birth <span className="text-rose-600">*</span>
+									</label>
+									<input
+										type="date"
+										value={registerForm.dob}
+										onChange={(e) => {
+											setRegisterForm(prev => ({ ...prev, dob: e.target.value }));
+											setRegisterFormErrors(prev => ({ ...prev, dob: undefined }));
+										}}
+										className="input-base"
+										required
+									/>
+									{registerFormErrors.dob && <p className="mt-1 text-xs text-rose-500">{registerFormErrors.dob}</p>}
+								</div>
+								<div className="md:col-span-3">
+									<label className="block text-sm font-medium text-slate-700">
+										Gender <span className="text-rose-600">*</span>
+									</label>
+									<select
+										value={registerForm.gender}
+										onChange={(e) => {
+											setRegisterForm(prev => ({ ...prev, gender: e.target.value as AdminGenderOption }));
+											setRegisterFormErrors(prev => ({ ...prev, gender: undefined }));
+										}}
+										className="select-base"
+										required
+									>
+										{GENDER_OPTIONS.map(option => (
+											<option key={option.value} value={option.value}>
+												{option.label}
+											</option>
+										))}
+									</select>
+									{registerFormErrors.gender && (
+										<p className="mt-1 text-xs text-rose-500">{registerFormErrors.gender}</p>
+									)}
+								</div>
+							</div>
+
+							<div className="grid gap-4 md:grid-cols-12">
+								<div className="md:col-span-3">
+									<label className="block text-sm font-medium text-slate-700">
+										Phone Number <span className="text-rose-600">*</span>
+									</label>
+									<input
+										type="tel"
+										value={registerForm.phone}
+										onChange={(e) => {
+											setRegisterForm(prev => ({ ...prev, phone: e.target.value }));
+											setRegisterFormErrors(prev => ({ ...prev, phone: undefined }));
+										}}
+										className="input-base"
+										placeholder="10-15 digits"
+										pattern="[0-9]{10,15}"
+										required
+									/>
+									{registerFormErrors.phone && <p className="mt-1 text-xs text-rose-500">{registerFormErrors.phone}</p>}
+								</div>
+								<div className="md:col-span-6">
+									<label className="block text-sm font-medium text-slate-700">Email</label>
+									<input
+										type="email"
+										value={registerForm.email}
+										onChange={(e) => {
+											setRegisterForm(prev => ({ ...prev, email: e.target.value }));
+											setRegisterFormErrors(prev => ({ ...prev, email: undefined }));
+										}}
+										className="input-base"
+										placeholder="name@example.com"
+										autoComplete="email"
+									/>
+									{registerFormErrors.email && <p className="mt-1 text-xs text-rose-500">{registerFormErrors.email}</p>}
+								</div>
+							</div>
+
+							<div className="grid gap-4 md:grid-cols-12">
+								<div className="md:col-span-12">
+									<label className="block text-sm font-medium text-slate-700">Address</label>
+									<textarea
+										value={registerForm.address}
+										onChange={(e) => setRegisterForm(prev => ({ ...prev, address: e.target.value }))}
+										className="textarea-base"
+										placeholder="Street, city, postal code"
+										rows={2}
+										autoComplete="street-address"
+									/>
+								</div>
+							</div>
+
+							<div className="grid gap-4 md:grid-cols-12">
+								<div className="md:col-span-12">
+									<label className="block text-sm font-medium text-slate-700">
+										Type of Organization <span className="text-rose-600">*</span>
+									</label>
+									<div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+										{PATIENT_TYPE_OPTIONS.map(type => (
+											<label
+												key={type.value}
+												className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 transition hover:border-sky-300 hover:bg-sky-50 cursor-pointer"
+											>
+												<input
+													type="radio"
+													name="registerPatientType"
+													value={type.value}
+													checked={registerForm.patientType === type.value}
+													onChange={() => {
+														setRegisterForm(prev => ({
+															...prev,
+															patientType: type.value,
+														}));
+														setRegisterFormErrors(prev => ({
+															...prev,
+															patientType: undefined,
+														}));
+													}}
+													className="h-4 w-4 border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												<span className="text-sm font-medium text-slate-700">{type.label}</span>
+											</label>
+										))}
+									</div>
+									{registerFormErrors.patientType && (
+										<p className="mt-1 text-xs text-rose-500">{registerFormErrors.patientType}</p>
+									)}
+								</div>
+							</div>
+
+							<footer className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
+								<button
+									type="button"
+									onClick={() => {
+										setShowRegisterModal(false);
+										setRegisterForm({
+											fullName: '',
+											dob: '',
+											gender: '' as AdminGenderOption,
+											phone: '',
+											email: '',
+											address: '',
+											patientType: '' as 'DYES' | 'VIP' | 'GETHNA' | 'PAID' | '',
+										});
+										setRegisterFormErrors({});
+										setRegisterNotice(null);
+									}}
+									className="btn-secondary"
+									disabled={registerSubmitting}
+								>
+									Cancel
+								</button>
+								<button type="submit" className="btn-primary" disabled={registerSubmitting}>
+									{registerSubmitting ? (
+										<>
+											<div className="mr-2 inline-flex h-4 w-4 items-center justify-center rounded-full border-2 border-white border-t-transparent animate-spin" />
+											Registering...
+										</>
+									) : (
+										<>
+											<i className="fas fa-user-plus text-xs" aria-hidden="true" />
+											Register Patient
+										</>
+									)}
+								</button>
+							</footer>
+						</form>
+					</div>
+				</div>
 			)}
 
 		</div>

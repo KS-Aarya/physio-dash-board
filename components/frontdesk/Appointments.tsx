@@ -101,6 +101,8 @@ export default function Appointments() {
 	const [searchTerm, setSearchTerm] = useState('');
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [notesDraft, setNotesDraft] = useState('');
+	const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
+	const [doctorDraft, setDoctorDraft] = useState('');
 	const [updating, setUpdating] = useState<Record<string, boolean>>({});
 	const [showBookingModal, setShowBookingModal] = useState(false);
 	const [bookingForm, setBookingForm] = useState<BookingForm>({
@@ -342,6 +344,18 @@ export default function Appointments() {
 			return availability.isAvailable;
 		});
 	}, [staff, bookingForm.date, bookingForm.time]);
+
+	// Get all available clinicians for editing appointments
+	const availableClinicians = useMemo(() => {
+		return staff
+			.filter(member => 
+				member.status === 'Active' && 
+				['Physiotherapist', 'StrengthAndConditioning', 'ClinicalTeam'].includes(member.role)
+			)
+			.map(member => member.userName)
+			.filter(Boolean)
+			.sort((a, b) => a.localeCompare(b));
+	}, [staff]);
 
 	// Clear doctor selection if they're no longer available
 	useEffect(() => {
@@ -706,6 +720,71 @@ export default function Appointments() {
 	const handleCancelEditing = () => {
 		setEditingId(null);
 		setNotesDraft('');
+	};
+
+	const handleEditDoctor = (appointment: FrontdeskAppointment) => {
+		setEditingDoctorId(appointment.appointmentId);
+		setDoctorDraft(appointment.doctor || '');
+	};
+
+	const handleSaveDoctor = async () => {
+		if (!editingDoctorId) return;
+
+		const appointment = appointments.find(a => a.appointmentId === editingDoctorId);
+		if (!appointment) return;
+
+		if (!doctorDraft.trim()) {
+			alert('Please select a clinician.');
+			return;
+		}
+
+		const staffMember = staff.find(member => member.userName === doctorDraft.trim());
+		if (!staffMember) {
+			alert('Selected clinician not found. Please select a valid clinician.');
+			return;
+		}
+
+		setUpdating(prev => ({ ...prev, [appointment.id]: true }));
+		try {
+			const appointmentRef = doc(db, 'appointments', appointment.id);
+			await updateDoc(appointmentRef, {
+				doctor: doctorDraft.trim(),
+				staffId: staffMember.id,
+			});
+
+			// Update patient's assignedDoctor if this is the most recent appointment
+			const patientDetails = patients.find(p => p.patientId === appointment.patientId);
+			if (patientDetails?.id) {
+				const patientAppointments = appointments
+					.filter(a => a.patientId === appointment.patientId)
+					.sort((a, b) => {
+						const aDate = new Date(`${a.date}T${a.time}`).getTime();
+						const bDate = new Date(`${b.date}T${b.time}`).getTime();
+						return bDate - aDate;
+					});
+
+				// If this is the most recent appointment, update patient's assignedDoctor
+				if (patientAppointments.length > 0 && patientAppointments[0].appointmentId === appointment.appointmentId) {
+					const patientRef = doc(db, 'patients', patientDetails.id);
+					await updateDoc(patientRef, {
+						assignedDoctor: doctorDraft.trim(),
+					});
+				}
+			}
+
+			setEditingDoctorId(null);
+			setDoctorDraft('');
+		} catch (error) {
+			console.error('Failed to update appointment doctor', error);
+			alert(`Failed to update clinician: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			setUpdating(prev => ({ ...prev, [appointment.id]: false }));
+		}
+	};
+
+	const handleCancelEditingDoctor = () => {
+		setEditingDoctorId(null);
+		setDoctorDraft('');
 	};
 
 	const handleOpenBookingModal = () => {
@@ -1289,6 +1368,10 @@ export default function Appointments() {
 								onClick={() => {
 									setShowPatientAppointmentsModal(false);
 									setSelectedPatientId(null);
+									setEditingId(null);
+									setNotesDraft('');
+									setEditingDoctorId(null);
+									setDoctorDraft('');
 								}}
 								className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:bg-slate-100 focus-visible:text-slate-600 focus-visible:outline-none"
 								aria-label="Close dialog"
@@ -1318,6 +1401,7 @@ export default function Appointments() {
 											{selectedPatientAppointments.map(appointment => {
 												const patientDetails = patients.find(p => p.patientId === appointment.patientId);
 												const isEditing = editingId === appointment.appointmentId;
+												const isEditingDoctor = editingDoctorId === appointment.appointmentId;
 												const isUpdating = updating[appointment.id] || false;
 
 												return (
@@ -1328,7 +1412,54 @@ export default function Appointments() {
 																Booked {formatDateLabel(appointment.createdAt)}
 															</p>
 														</td>
-														<td className="px-4 py-4 text-sm text-slate-600">{appointment.doctor || 'Not assigned'}</td>
+														<td className="px-4 py-4 text-sm text-slate-600">
+															{isEditingDoctor ? (
+																<div className="space-y-2">
+																	<select
+																		value={doctorDraft}
+																		onChange={event => setDoctorDraft(event.target.value)}
+																		className="select-base"
+																		disabled={isUpdating}
+																	>
+																		<option value="">Select clinician</option>
+																		{availableClinicians.map(clinician => (
+																			<option key={clinician} value={clinician}>
+																				{clinician}
+																			</option>
+																		))}
+																	</select>
+																	<div className="flex items-center gap-2">
+																		<button
+																			type="button"
+																			onClick={handleSaveDoctor}
+																			disabled={isUpdating}
+																			className="btn-primary"
+																		>
+																			{isUpdating ? 'Saving...' : 'Save'}
+																		</button>
+																		<button
+																			type="button"
+																			onClick={handleCancelEditingDoctor}
+																			disabled={isUpdating}
+																			className="btn-secondary"
+																		>
+																			Cancel
+																		</button>
+																	</div>
+																</div>
+															) : (
+																<div className="space-y-2">
+																	<p>{appointment.doctor || 'Not assigned'}</p>
+																	<button
+																		type="button"
+																		onClick={() => handleEditDoctor(appointment)}
+																		className="text-xs font-semibold text-sky-600 hover:text-sky-500"
+																	>
+																		Edit clinician
+																	</button>
+																</div>
+															)}
+														</td>
 														<td className="px-4 py-4 text-sm text-slate-600">
 															{formatDateLabel(appointment.date)} at {appointment.time || '—'}
 														</td>
@@ -1423,6 +1554,10 @@ export default function Appointments() {
 								onClick={() => {
 									setShowPatientAppointmentsModal(false);
 									setSelectedPatientId(null);
+									setEditingId(null);
+									setNotesDraft('');
+									setEditingDoctorId(null);
+									setDoctorDraft('');
 								}}
 								className="btn-secondary"
 							>
