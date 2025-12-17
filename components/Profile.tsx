@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, query, where, getDocs, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { reauthenticateWithCredential, updatePassword, EmailAuthProvider } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import PageHeader from '@/components/PageHeader';
 
@@ -48,6 +49,17 @@ export default function Profile() {
 	});
 	const [imagePreview, setImagePreview] = useState<string>('');
 	const [uploadingImage, setUploadingImage] = useState(false);
+	
+	// Password change state
+	const [showPasswordChange, setShowPasswordChange] = useState(false);
+	const [passwordData, setPasswordData] = useState({
+		currentPassword: '',
+		newPassword: '',
+		confirmPassword: '',
+	});
+	const [changingPassword, setChangingPassword] = useState(false);
+	const [passwordError, setPasswordError] = useState<string | null>(null);
+	const [passwordSuccess, setPasswordSuccess] = useState(false);
 
 	// Load user profile from staff collection
 	useEffect(() => {
@@ -224,6 +236,118 @@ export default function Profile() {
 			alert('Failed to save profile. Please try again.');
 		} finally {
 			setSaving(false);
+		}
+	};
+
+	const handlePasswordChange = (field: 'currentPassword' | 'newPassword' | 'confirmPassword') => (
+		e: React.ChangeEvent<HTMLInputElement>
+	) => {
+		setPasswordData(prev => ({
+			...prev,
+			[field]: e.target.value,
+		}));
+		setPasswordError(null);
+		setPasswordSuccess(false);
+	};
+
+	const handleChangePassword = async () => {
+		if (!user?.email) {
+			setPasswordError('User not authenticated');
+			return;
+		}
+
+		// Validation
+		if (!passwordData.currentPassword.trim()) {
+			setPasswordError('Current password is required');
+			return;
+		}
+
+		if (!passwordData.newPassword.trim()) {
+			setPasswordError('New password is required');
+			return;
+		}
+
+		if (passwordData.newPassword.length < 6) {
+			setPasswordError('New password must be at least 6 characters long');
+			return;
+		}
+
+		if (passwordData.newPassword !== passwordData.confirmPassword) {
+			setPasswordError('New passwords do not match');
+			return;
+		}
+
+		if (passwordData.currentPassword === passwordData.newPassword) {
+			setPasswordError('New password must be different from current password');
+			return;
+		}
+
+		setChangingPassword(true);
+		setPasswordError(null);
+		setPasswordSuccess(false);
+
+		try {
+			const currentUser = auth.currentUser;
+			if (!currentUser) {
+				setPasswordError('User not authenticated. Please log in again.');
+				return;
+			}
+
+			// Get the email - prefer currentUser.email, fallback to user.email from context
+			// Normalize to lowercase as Firebase Auth stores emails in lowercase
+			const userEmail = (currentUser.email || user?.email)?.toLowerCase().trim();
+			if (!userEmail) {
+				setPasswordError('User email not found. Please log in again.');
+				return;
+			}
+
+			// Reauthenticate user with current password
+			// Ensure password is trimmed
+			const trimmedCurrentPassword = passwordData.currentPassword.trim();
+			if (!trimmedCurrentPassword) {
+				setPasswordError('Current password cannot be empty.');
+				return;
+			}
+
+			const credential = EmailAuthProvider.credential(
+				userEmail,
+				trimmedCurrentPassword
+			);
+			
+			await reauthenticateWithCredential(currentUser, credential);
+
+			// Update password
+			await updatePassword(currentUser, passwordData.newPassword);
+
+			// Success
+			setPasswordSuccess(true);
+			setPasswordData({
+				currentPassword: '',
+				newPassword: '',
+				confirmPassword: '',
+			});
+			setTimeout(() => {
+				setPasswordSuccess(false);
+				setShowPasswordChange(false);
+			}, 3000);
+		} catch (error: any) {
+			console.error('Password change error:', error);
+			const code = error?.code || '';
+			if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+				setPasswordError('Current password is incorrect. Please verify your current password and try again.');
+			} else if (code === 'auth/weak-password') {
+				setPasswordError('New password is too weak. Please choose a stronger password.');
+			} else if (code === 'auth/requires-recent-login') {
+				setPasswordError('For security, please log out and log in again before changing your password.');
+			} else if (code === 'auth/user-mismatch') {
+				setPasswordError('The credential provided does not match the user. Please try again.');
+			} else if (code === 'auth/user-not-found') {
+				setPasswordError('User account not found. Please log in again.');
+			} else {
+				setPasswordError(error?.message || 'Failed to change password. Please try again.');
+			}
+		} finally {
+			setChangingPassword(false);
 		}
 	};
 
@@ -500,6 +624,124 @@ export default function Profile() {
 							/>
 						</div>
 					</div>
+				</div>
+
+				<div className="section-card">
+					<div className="mb-6 flex items-center justify-between">
+						<h2 className="text-lg font-semibold text-slate-900">Change Password</h2>
+						<button
+							type="button"
+							onClick={() => {
+								setShowPasswordChange(!showPasswordChange);
+								setPasswordError(null);
+								setPasswordSuccess(false);
+								if (!showPasswordChange) {
+									setPasswordData({
+										currentPassword: '',
+										newPassword: '',
+										confirmPassword: '',
+									});
+								}
+							}}
+							className="text-sm font-medium text-sky-600 hover:text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 rounded px-3 py-1.5"
+						>
+							{showPasswordChange ? (
+								<>
+									<i className="fas fa-times mr-1" aria-hidden="true" />
+									Cancel
+								</>
+							) : (
+								<>
+									<i className="fas fa-key mr-1" aria-hidden="true" />
+									Change Password
+								</>
+							)}
+						</button>
+					</div>
+
+					{showPasswordChange && (
+						<div className="space-y-6">
+							{passwordSuccess && (
+								<div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+									<i className="fas fa-check-circle mr-2" aria-hidden="true" />
+									Password changed successfully!
+								</div>
+							)}
+
+							{passwordError && (
+								<div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+									<i className="fas fa-exclamation-circle mr-2" aria-hidden="true" />
+									{passwordError}
+								</div>
+							)}
+
+							<div>
+								<label className="mb-2 block text-sm font-medium text-slate-700">
+									Current Password <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="password"
+									value={passwordData.currentPassword}
+									onChange={handlePasswordChange('currentPassword')}
+									placeholder="Enter your current password"
+									className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+									autoComplete="current-password"
+								/>
+							</div>
+
+							<div>
+								<label className="mb-2 block text-sm font-medium text-slate-700">
+									New Password <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="password"
+									value={passwordData.newPassword}
+									onChange={handlePasswordChange('newPassword')}
+									placeholder="Enter your new password (min. 6 characters)"
+									className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+									autoComplete="new-password"
+								/>
+								<p className="mt-1 text-xs text-slate-500">
+									Password must be at least 6 characters long
+								</p>
+							</div>
+
+							<div>
+								<label className="mb-2 block text-sm font-medium text-slate-700">
+									Confirm New Password <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="password"
+									value={passwordData.confirmPassword}
+									onChange={handlePasswordChange('confirmPassword')}
+									placeholder="Confirm your new password"
+									className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+									autoComplete="new-password"
+								/>
+							</div>
+
+							<div className="flex justify-end">
+								<button
+									type="button"
+									onClick={handleChangePassword}
+									disabled={changingPassword || !passwordData.currentPassword.trim() || !passwordData.newPassword.trim() || !passwordData.confirmPassword.trim()}
+									className="inline-flex items-center rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									{changingPassword ? (
+										<>
+											<div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+											Changing...
+										</>
+									) : (
+										<>
+											<i className="fas fa-save mr-2" aria-hidden="true" />
+											Change Password
+										</>
+									)}
+								</button>
+							</div>
+						</div>
+					)}
 				</div>
 
 				{/* Save Button */}
