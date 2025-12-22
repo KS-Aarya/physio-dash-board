@@ -202,6 +202,7 @@ interface FrontdeskPatient {
 interface DayAvailability {
 	enabled: boolean;
 	slots: Array<{ start: string; end: string }>;
+	unavailableSlots?: Array<{ start: string; end: string }>;
 }
 
 interface DateSpecificAvailability {
@@ -1321,6 +1322,9 @@ export default function Patients() {
 		const isToday = selectedDate.toDateString() === now.toDateString();
 		const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
+		// Get unavailable slots for this date
+		const unavailableSlots = dayAvailability.unavailableSlots || [];
+
 		const slots: string[] = [];
 
 		dayAvailability.slots.forEach(slot => {
@@ -1347,6 +1351,20 @@ export default function Patients() {
 				const timeString = `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`;
 
 				if (bookedSlotSet.has(timeString)) {
+					current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
+					continue;
+				}
+
+				// Filter out slots that overlap with unavailable time ranges
+				const slotStartMinutes = timeStringToMinutes(timeString);
+				const slotEndMinutes = slotStartMinutes + SLOT_INTERVAL_MINUTES;
+				const isUnavailable = unavailableSlots.some(unavailSlot => {
+					const unavailStart = timeStringToMinutes(unavailSlot.start);
+					const unavailEnd = timeStringToMinutes(unavailSlot.end);
+					// Check if slot overlaps with unavailable range (overlap: slotStart < unavailEnd && unavailStart < slotEnd)
+					return slotStartMinutes < unavailEnd && unavailStart < slotEndMinutes;
+				});
+				if (isUnavailable) {
 					current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
 					continue;
 				}
@@ -1430,6 +1448,9 @@ export default function Patients() {
 		const isToday = selectedDate.toDateString() === now.toDateString();
 		const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
+		// Get unavailable slots for this date
+		const unavailableSlots = dayAvailability.unavailableSlots || [];
+
 		const slots: string[] = [];
 
 		dayAvailability.slots.forEach(slot => {
@@ -1456,6 +1477,20 @@ export default function Patients() {
 				const timeString = `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`;
 
 				if (bookedSlotSet.has(timeString)) {
+					current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
+					continue;
+				}
+
+				// Filter out slots that overlap with unavailable time ranges
+				const slotStartMinutes = timeStringToMinutes(timeString);
+				const slotEndMinutes = slotStartMinutes + SLOT_INTERVAL_MINUTES;
+				const isUnavailable = unavailableSlots.some(unavailSlot => {
+					const unavailStart = timeStringToMinutes(unavailSlot.start);
+					const unavailEnd = timeStringToMinutes(unavailSlot.end);
+					// Check if slot overlaps with unavailable range (overlap: slotStart < unavailEnd && unavailStart < slotEnd)
+					return slotStartMinutes < unavailEnd && unavailStart < slotEndMinutes;
+				});
+				if (isUnavailable) {
 					current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
 					continue;
 				}
