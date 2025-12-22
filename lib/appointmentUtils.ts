@@ -122,6 +122,7 @@ export function checkAvailabilityConflict(
 		[date: string]: {
 			enabled: boolean;
 			slots: Array<{ start: string; end: string }>;
+			unavailableSlots?: Array<{ start: string; end: string }>;
 		};
 	} | undefined,
 	date: string,
@@ -166,6 +167,32 @@ export function checkAvailabilityConflict(
 	const appointmentStart = new Date(appointmentDate);
 	appointmentStart.setHours(hours, minutes, 0, 0);
 	const appointmentEnd = new Date(appointmentStart.getTime() + duration * 60000);
+
+	// Check if appointment overlaps with any unavailable slots
+	const unavailableSlots = daySchedule?.unavailableSlots || [];
+	for (const unavailableSlot of unavailableSlots) {
+		const [unavailStartHours, unavailStartMinutes] = unavailableSlot.start.split(':').map(Number);
+		const [unavailEndHours, unavailEndMinutes] = unavailableSlot.end.split(':').map(Number);
+
+		const unavailStart = new Date(appointmentDate);
+		unavailStart.setHours(unavailStartHours, unavailStartMinutes, 0, 0);
+
+		const unavailEnd = new Date(appointmentDate);
+		unavailEnd.setHours(unavailEndHours, unavailEndMinutes, 0, 0);
+
+		// Handle slots that span midnight
+		if (unavailEnd <= unavailStart) {
+			unavailEnd.setDate(unavailEnd.getDate() + 1);
+		}
+
+		// Check if appointment overlaps with unavailable slot (overlap: start < unavailEnd && unavailStart < end)
+		if (appointmentStart < unavailEnd && unavailStart < appointmentEnd) {
+			return {
+				isAvailable: false,
+				reason: `Time slot ${time} overlaps with an unavailable time range (${unavailableSlot.start} - ${unavailableSlot.end})`,
+			};
+		}
+	}
 
 	// Check if appointment fits within any available slot
 	for (const slot of slots) {

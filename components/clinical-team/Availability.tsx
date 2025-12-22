@@ -14,6 +14,7 @@ interface TimeSlot {
 interface DayAvailability {
 	enabled: boolean;
 	slots: TimeSlot[];
+	unavailableSlots?: TimeSlot[]; // Time ranges when user is unavailable within an available day
 }
 
 interface DateSpecificAvailability {
@@ -88,6 +89,7 @@ export default function Availability() {
 		selectedDates: string[];
 	}>({ isOpen: false, sourceDate: null, selectedDates: [] });
 	const [copyingSchedule, setCopyingSchedule] = useState(false);
+	const [newUnavailableSlot, setNewUnavailableSlot] = useState<{ start: string; end: string }>({ start: '', end: '' });
 
 	// Find staff document by user email
 	useEffect(() => {
@@ -352,7 +354,9 @@ const loadAppointmentsForDate = async (
 		setEditingDateSchedule({
 			enabled: !isUnavailable, // If not in dateSpecific or enabled=true, it's available
 			slots: DEFAULT_SLOTS.map(slot => ({ ...slot })),
+			unavailableSlots: dateSpecific[date]?.unavailableSlots || [],
 		});
+		setNewUnavailableSlot({ start: '', end: '' }); // Reset new slot form
 		// Appointments will be loaded automatically via useEffect when selectedDate changes
 	};
 
@@ -368,8 +372,10 @@ const loadAppointmentsForDate = async (
 		}
 
 		// If enabled is false, mark as unavailable (store in dateSpecific)
-		// If enabled is true, remove from dateSpecific (use default availability)
+		// If enabled is true but has unavailable slots, store in dateSpecific with unavailableSlots
+		// If enabled is true and no unavailable slots, remove from dateSpecific (use default availability)
 		const updatedSchedule = { ...dateSpecific };
+		const hasUnavailableSlots = editingDateSchedule.unavailableSlots && editingDateSchedule.unavailableSlots.length > 0;
 		
 		if (!editingDateSchedule.enabled) {
 			// Mark as unavailable
@@ -377,8 +383,15 @@ const loadAppointmentsForDate = async (
 				enabled: false,
 				slots: DEFAULT_SLOTS, // Store default slots for reference
 			};
+		} else if (hasUnavailableSlots) {
+			// Day is available but has unavailable time slots - store in dateSpecific
+			updatedSchedule[selectedDate] = {
+				enabled: true,
+				slots: DEFAULT_SLOTS,
+				unavailableSlots: editingDateSchedule.unavailableSlots,
+			};
 		} else {
-			// Remove from dateSpecific to use default availability
+			// Day is available with no unavailable slots - remove from dateSpecific to use default
 			delete updatedSchedule[selectedDate];
 		}
 
@@ -914,6 +927,7 @@ const loadAppointmentsForDate = async (
 										setSelectedDate(null);
 										setEditingDateSchedule(null);
 										setAppointmentsForDate([]);
+										setNewUnavailableSlot({ start: '', end: '' });
 									}}
 									className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
 								>
@@ -998,6 +1012,127 @@ const loadAppointmentsForDate = async (
 											: 'Check to mark this date as available. You will be available from 9 AM to 6 PM on this date.'}
 									</p>
 								</div>
+
+								{/* Unavailable Time Slots Section - Only show when day is enabled */}
+								{editingDateSchedule.enabled && (
+									<div className="mt-6 border-t border-slate-200 pt-4">
+										<div className="mb-3">
+											<h4 className="text-sm font-semibold text-slate-900 mb-1">
+												Unavailable Time Slots
+											</h4>
+											<p className="text-xs text-slate-500">
+												Select specific time ranges when you are unavailable on this date. The rest of the day will remain available.
+											</p>
+										</div>
+
+										{/* Add Unavailable Time Range */}
+										<div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+											<div className="grid grid-cols-2 gap-3 mb-3">
+												<div>
+													<label className="block text-xs font-medium text-slate-700 mb-1">
+														Start Time
+													</label>
+													<input
+														type="time"
+														value={newUnavailableSlot.start}
+														onChange={(e) => setNewUnavailableSlot({ ...newUnavailableSlot, start: e.target.value })}
+														min={DEFAULT_START_TIME}
+														max={DEFAULT_END_TIME}
+														className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+													/>
+												</div>
+												<div>
+													<label className="block text-xs font-medium text-slate-700 mb-1">
+														End Time
+													</label>
+													<input
+														type="time"
+														value={newUnavailableSlot.end}
+														onChange={(e) => setNewUnavailableSlot({ ...newUnavailableSlot, end: e.target.value })}
+														min={newUnavailableSlot.start || DEFAULT_START_TIME}
+														max={DEFAULT_END_TIME}
+														className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+													/>
+												</div>
+											</div>
+											<button
+												type="button"
+												onClick={() => {
+													if (newUnavailableSlot.start && newUnavailableSlot.end) {
+														const startMinutes = timeStringToMinutes(newUnavailableSlot.start);
+														const endMinutes = timeStringToMinutes(newUnavailableSlot.end);
+														
+														if (endMinutes <= startMinutes) {
+															alert('End time must be after start time.');
+															return;
+														}
+														
+														const newSlots = [...(editingDateSchedule.unavailableSlots || []), {
+															start: newUnavailableSlot.start,
+															end: newUnavailableSlot.end,
+														}];
+														setEditingDateSchedule({
+															...editingDateSchedule,
+															unavailableSlots: newSlots,
+														});
+														setNewUnavailableSlot({ start: '', end: '' });
+													}
+												}}
+												disabled={!newUnavailableSlot.start || !newUnavailableSlot.end}
+												className="w-full rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+											>
+												<i className="fas fa-plus mr-1" aria-hidden="true" />
+												Add Unavailable Time Range
+											</button>
+										</div>
+
+										{/* List of Unavailable Time Slots */}
+										{editingDateSchedule.unavailableSlots && editingDateSchedule.unavailableSlots.length > 0 && (
+											<div className="space-y-2">
+												{editingDateSchedule.unavailableSlots
+													.filter(slot => slot.start && slot.end)
+													.map((slot, idx) => {
+														const fullSlots = editingDateSchedule.unavailableSlots?.filter(s => s.start && s.end) || [];
+														const actualIdx = fullSlots.indexOf(slot);
+														return (
+															<div
+																key={idx}
+																className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 px-3 py-2"
+															>
+																<div className="flex items-center gap-2">
+																	<i className="fas fa-clock text-rose-600 text-xs" aria-hidden="true" />
+																	<span className="text-sm font-medium text-rose-900">
+																		{slot.start} - {slot.end}
+																	</span>
+																</div>
+																<button
+																	type="button"
+																	onClick={() => {
+																		const newSlots = [...(editingDateSchedule.unavailableSlots || [])];
+																		// Find and remove this specific slot
+																		const slotIndex = newSlots.findIndex(
+																			s => s.start === slot.start && s.end === slot.end
+																		);
+																		if (slotIndex !== -1) {
+																			newSlots.splice(slotIndex, 1);
+																		}
+																		setEditingDateSchedule({
+																			...editingDateSchedule,
+																			unavailableSlots: newSlots,
+																		});
+																	}}
+																	className="rounded p-1 text-rose-600 transition hover:bg-rose-100 focus:outline-none"
+																	title="Remove unavailable time slot"
+																>
+																	<i className="fas fa-times text-xs" aria-hidden="true" />
+																</button>
+															</div>
+														);
+													})}
+											</div>
+										)}
+									</div>
+								)}
 							</div>
 							<footer className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
 								<button
@@ -1006,6 +1141,7 @@ const loadAppointmentsForDate = async (
 										setSelectedDate(null);
 										setEditingDateSchedule(null);
 										setAppointmentsForDate([]);
+										setNewUnavailableSlot({ start: '', end: '' });
 									}}
 									className="btn-secondary"
 								>

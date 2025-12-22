@@ -697,16 +697,25 @@ export default function Appointments() {
 		return patients;
 	}, [patients]);
 
-	// Filter patients based on search term for booking modal
+	// Filter patients based on search term for booking modal and sort alphabetically
 	const filteredAvailablePatients = useMemo(() => {
-		if (!patientSearchTerm.trim()) {
-			return availablePatients;
+		let filtered = availablePatients;
+		
+		// Apply search filter if search term exists
+		if (patientSearchTerm.trim()) {
+			const query = patientSearchTerm.trim().toLowerCase();
+			filtered = availablePatients.filter(patient => 
+				patient.name.toLowerCase().includes(query) ||
+				patient.patientId.toLowerCase().includes(query)
+			);
 		}
-		const query = patientSearchTerm.trim().toLowerCase();
-		return availablePatients.filter(patient => 
-			patient.name.toLowerCase().includes(query) ||
-			patient.patientId.toLowerCase().includes(query)
-		);
+		
+		// Sort alphabetically by patient name (case-insensitive)
+		return [...filtered].sort((a, b) => {
+			const nameA = a.name.toLowerCase().trim();
+			const nameB = b.name.toLowerCase().trim();
+			return nameA.localeCompare(nameB);
+		});
 	}, [availablePatients, patientSearchTerm]);
 
 	// Filter appointments based on showAllAppointments

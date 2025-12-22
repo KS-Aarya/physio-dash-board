@@ -19,6 +19,7 @@ interface Patient {
 interface DayAvailability {
 	enabled: boolean;
 	slots: Array<{ start: string; end: string }>;
+	unavailableSlots?: Array<{ start: string; end: string }>;
 }
 
 interface DateSpecificAvailability {
@@ -336,11 +337,15 @@ export default function AppointmentBookingModal({
 				dayAvailability,
 				enabled: dayAvailability?.enabled,
 				slotsCount: dayAvailability?.slots?.length || 0,
+				unavailableSlotsCount: dayAvailability?.unavailableSlots?.length || 0,
 			});
 		}
 		if (!dayAvailability || !dayAvailability.enabled || !dayAvailability.slots || dayAvailability.slots.length === 0) {
 			return [];
 		}
+
+		// Get unavailable slots for this date
+		const unavailableSlots = dayAvailability.unavailableSlots || [];
 
 		// Get all booked appointments for this staff and date
 		// Use allClinicianAppointments (fetched from Firestore) instead of just the appointments prop
@@ -476,6 +481,23 @@ export default function AppointmentBookingModal({
 				if (isBooked) {
 					if (process.env.NODE_ENV === 'development') {
 						console.log(`⛔ Filtering out booked slot: ${timeString}`);
+					}
+					currentTime.setMinutes(currentTime.getMinutes() + SLOT_INTERVAL_MINUTES);
+					continue;
+				}
+
+				// Filter out slots that overlap with unavailable time ranges
+				const slotStartMinutes = timeStringToMinutes(timeString);
+				const slotEndMinutes = slotStartMinutes + SLOT_INTERVAL_MINUTES;
+				const isUnavailable = unavailableSlots.some(unavailSlot => {
+					const unavailStart = timeStringToMinutes(unavailSlot.start);
+					const unavailEnd = timeStringToMinutes(unavailSlot.end);
+					// Check if slot overlaps with unavailable range (overlap: slotStart < unavailEnd && unavailStart < slotEnd)
+					return slotStartMinutes < unavailEnd && unavailStart < slotEndMinutes;
+				});
+				if (isUnavailable) {
+					if (process.env.NODE_ENV === 'development') {
+						console.log(`⛔ Filtering out unavailable slot: ${timeString}`);
 					}
 					currentTime.setMinutes(currentTime.getMinutes() + SLOT_INTERVAL_MINUTES);
 					continue;
