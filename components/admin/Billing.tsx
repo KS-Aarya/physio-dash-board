@@ -854,6 +854,7 @@ export default function Billing() {
 	const [utr, setUtr] = useState('');
 	const [selectedInstallmentNumber, setSelectedInstallmentNumber] = useState<number | null>(null);
 	const [filterRange, setFilterRange] = useState<string>('30');
+	const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
 
 	// Load appointments from Firestore
 	useEffect(() => {
@@ -2085,6 +2086,18 @@ export default function Billing() {
 	const pending = useMemo(() => {
 		return billing.filter(b => b.status === 'Pending');
 	}, [billing]);
+	const filteredPending = useMemo(() => {
+		if (!pendingSearchQuery.trim()) return pending;
+		const query = pendingSearchQuery.toLowerCase().trim();
+		return pending.filter(bill => 
+			bill.billingId?.toLowerCase().includes(query) ||
+			bill.patient?.toLowerCase().includes(query) ||
+			bill.patientId?.toLowerCase().includes(query) ||
+			bill.doctor?.toLowerCase().includes(query) ||
+			bill.amount?.toString().includes(query) ||
+			bill.date?.toLowerCase().includes(query)
+		);
+	}, [pending, pendingSearchQuery]);
 
 	// Completed payments from billing collection
 	const completed = useMemo(() => {
@@ -2659,16 +2672,28 @@ export default function Billing() {
 			{/* Pending Payments Section */}
 			<section className="mx-auto mt-6 grid max-w-6xl gap-6">
 				<article className="rounded-2xl bg-white shadow-[0_18px_40px_rgba(15,23,42,0.07)]">
-					<header className="flex items-center justify-between rounded-t-2xl bg-amber-100 px-5 py-4 text-amber-900">
-						<div>
-							<h2 className="text-lg font-semibold">Pending Payments</h2>
-							<p className="text-xs text-amber-800/80">
-								Bills awaiting payment confirmation.
-							</p>
+					<header className="rounded-t-2xl bg-amber-100 px-5 py-4 text-amber-900">
+						<div className="flex items-center justify-between mb-3">
+							<div>
+								<h2 className="text-lg font-semibold">Pending Payments</h2>
+								<p className="text-xs text-amber-800/80">
+									Bills awaiting payment confirmation.
+								</p>
+							</div>
+							<span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-amber-500 px-2 text-xs font-semibold text-white">
+								{pending.length}
+							</span>
 						</div>
-						<span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-amber-500 px-2 text-xs font-semibold text-white">
-							{pending.length}
-						</span>
+						<div className="relative">
+							<input
+								type="text"
+								placeholder="Search by Patient, Patient ID, Doctor, Amount, or Date..."
+								value={pendingSearchQuery}
+								onChange={(e) => setPendingSearchQuery(e.target.value)}
+								className="w-full rounded-lg border border-amber-300 bg-white px-4 py-2 pl-10 text-sm text-slate-900 placeholder-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
+							/>
+							<i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+						</div>
 					</header>
 					<div className="overflow-x-auto px-5 pb-5 pt-3">
 						<table className="min-w-full divide-y divide-amber-200 text-left text-sm text-slate-700">
@@ -2684,14 +2709,14 @@ export default function Billing() {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-amber-100">
-								{pending.length === 0 ? (
+								{filteredPending.length === 0 ? (
 									<tr>
 										<td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">
-											No pending payments.
+											{pendingSearchQuery.trim() ? 'No pending payments match your search.' : 'No pending payments.'}
 										</td>
 									</tr>
 								) : (
-									pending.map(bill => (
+									filteredPending.map(bill => (
 										<tr key={bill.id}>
 											<td className="px-3 py-3 font-medium text-slate-800">{bill.patient}</td>
 											<td className="px-3 py-3 text-slate-600">{bill.patientId}</td>

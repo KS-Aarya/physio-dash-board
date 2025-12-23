@@ -762,6 +762,7 @@ export default function Billing() {
 	const [patients, setPatients] = useState<any[]>([]);
 	const [selectedCycleId, setSelectedCycleId] = useState<string>('current');
 	const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+	const [pendingSearchQuery, setPendingSearchQuery] = useState<string>('');
 	const [editableInvoice, setEditableInvoice] = useState<{
 		invoiceNo: string;
 		invoiceDate: string;
@@ -999,6 +1000,18 @@ export default function Billing() {
 	}, [filteredBilling]);
 
 	const pending = useMemo(() => filteredBilling.filter(b => b.status === 'Pending'), [filteredBilling]);
+	const filteredPending = useMemo(() => {
+		if (!pendingSearchQuery.trim()) return pending;
+		const query = pendingSearchQuery.toLowerCase().trim();
+		return pending.filter(bill => 
+			bill.billingId?.toLowerCase().includes(query) ||
+			bill.patient?.toLowerCase().includes(query) ||
+			bill.patientId?.toLowerCase().includes(query) ||
+			bill.doctor?.toLowerCase().includes(query) ||
+			bill.amount?.toString().includes(query) ||
+			bill.date?.toLowerCase().includes(query)
+		);
+	}, [pending, pendingSearchQuery]);
 	const completed = useMemo(() => filteredBilling.filter(b => b.status === 'Completed'), [filteredBilling]);
 
 	// Calculate cycle summary based on selected cycle
@@ -1721,17 +1734,29 @@ export default function Billing() {
 							{/* Pending Payments */}
 							<div className="rounded-2xl border border-amber-200 bg-white shadow-sm">
 								<div className="border-b border-amber-200 bg-amber-50 px-6 py-4">
-									<h2 className="text-lg font-semibold text-slate-900">
-										Pending Payments{' '}
-										<span className="ml-2 rounded-full bg-amber-600 px-2.5 py-0.5 text-xs font-semibold text-white">
-											{pending.length}
-										</span>
-									</h2>
+									<div className="flex items-center justify-between mb-3">
+										<h2 className="text-lg font-semibold text-slate-900">
+											Pending Payments{' '}
+											<span className="ml-2 rounded-full bg-amber-600 px-2.5 py-0.5 text-xs font-semibold text-white">
+												{pending.length}
+											</span>
+										</h2>
+									</div>
+									<div className="relative">
+										<input
+											type="text"
+											placeholder="Search by Bill ID, Patient, Patient ID, Doctor, Amount, or Date..."
+											value={pendingSearchQuery}
+											onChange={(e) => setPendingSearchQuery(e.target.value)}
+											className="w-full rounded-lg border border-amber-300 bg-white px-4 py-2 pl-10 text-sm text-slate-900 placeholder-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
+										/>
+										<i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+									</div>
 								</div>
 								<div className="p-6">
-									{pending.length === 0 ? (
+									{filteredPending.length === 0 ? (
 										<p className="py-8 text-center text-sm text-slate-500">
-											No pending payments.
+											{pendingSearchQuery.trim() ? 'No pending payments match your search.' : 'No pending payments.'}
 										</p>
 									) : (
 										<div className="overflow-x-auto">
@@ -1748,7 +1773,7 @@ export default function Billing() {
 													</tr>
 												</thead>
 												<tbody className="divide-y divide-slate-100">
-													{pending.map(bill => {
+													{filteredPending.map(bill => {
 														const patientType = patients.find(p => p.patientId === bill.patientId)?.patientType;
 														const isDyes = (patientType || '').toUpperCase() === 'DYES';
 														const isReferral = (patientType || '').toUpperCase() === 'REFERRAL';
