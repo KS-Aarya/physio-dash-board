@@ -1955,23 +1955,23 @@ export default function Appointments() {
 																	{packageAppointmentsByPatient[group.patientId].map((apt, idx) => {
 																		const isCompleted = apt.status === 'completed';
 																		return (
-																			<button
-																				key={apt.id}
-																				type="button"
-																				onClick={() => {
-																					setReportModalPatientId(group.patientId);
-																					setShowReportModal(true);
-																				}}
+																		<button
+																			key={apt.id}
+																			type="button"
+																			onClick={() => {
+																				setReportModalPatientId(group.patientId);
+																				setShowReportModal(true);
+																			}}
 																				className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-white shadow-sm transition-all ${
 																					isCompleted
 																						? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
 																						: 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
 																				}`}
-																				title={`Session ${apt.sessionNumber || idx + 1}${apt.date ? ` - ${formatDateLabel(apt.date)}` : ' - Not scheduled'}`}
-																			>
-																				<i className="fas fa-file-medical text-xs" aria-hidden="true" />
-																				Session {apt.sessionNumber || idx + 1}
-																			</button>
+																			title={`Session ${apt.sessionNumber || idx + 1}${apt.date ? ` - ${formatDateLabel(apt.date)}` : ' - Not scheduled'}`}
+																		>
+																			<i className="fas fa-file-medical text-xs" aria-hidden="true" />
+																			Session {apt.sessionNumber || idx + 1}
+																		</button>
 																		);
 																	})}
 																</div>
