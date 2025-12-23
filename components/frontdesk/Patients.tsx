@@ -3440,6 +3440,12 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 									<p className="font-semibold text-slate-800">Patient Details</p>
 									<p>{selectedBookingPatient?.name ?? 'Not available'}</p>
 									<p>ID: {selectedBookingPatient?.patientId ?? '—'}</p>
+									{selectedBookingPatient?.registeredAt && (
+										<p className="text-xs font-semibold text-indigo-600">
+											<i className="fas fa-calendar-check mr-1" aria-hidden="true" />
+											Registered: {formatDateLabel(selectedBookingPatient.registeredAt)}
+										</p>
+									)}
 									<p>Phone: {selectedBookingPatient?.phone ?? '—'}</p>
 									<p>Email: {selectedBookingPatient?.email ?? '—'}</p>
 								</div>
