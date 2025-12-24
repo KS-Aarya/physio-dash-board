@@ -868,8 +868,7 @@ export interface StrengthConditioningData {
 	dominantSide?: 'Right' | 'Left';
 	// Periodization
 	seasonPhase?: 'Off-Season' | 'On-Season' | 'Competition';
-	// List of Matches
-	matchDates?: string[]; // Array of match dates in YYYY-MM-DD format
+	matchDates?: string[]; // List of match dates
 	// Skill Training
 	skillType?: 'Sports specific' | 'Fitness specific';
 	skillDuration?: string; // Time range e.g., "10:00 am to 11:00 am"

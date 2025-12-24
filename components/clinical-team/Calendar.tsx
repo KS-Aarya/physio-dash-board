@@ -494,9 +494,16 @@ export default function Calendar() {
 	const activityEvents = useMemo(() => {
 		return activities.map(activity => {
 			const colors = getActivityColor(activity.activityType);
+			
+			// Determine the display title: show description if type is "Other" and description exists, otherwise show activityType
+			let displayTitle = activity.activityType;
+			if (activity.activityType === 'Other' && activity.description) {
+				displayTitle = activity.description;
+			}
+			
 			return {
 				id: `activity-${activity.id}`,
-				title: activity.activityType,
+				title: displayTitle,
 				start: activity.startTime,
 				end: activity.endTime,
 				backgroundColor: colors.backgroundColor,
@@ -1102,7 +1109,7 @@ export default function Calendar() {
 								</div>
 							</div>
 						</div>
-					<div className="[&_.fc-toolbar-title]:text-xl [&_.fc-toolbar-title]:font-bold [&_.fc-toolbar-title]:text-slate-800 [&_.fc-button]:border-slate-300 [&_.fc-button]:bg-white [&_.fc-button]:text-slate-700 [&_.fc-button]:font-medium [&_.fc-button:hover]:border-sky-400 [&_.fc-button:hover]:bg-sky-50 [&_.fc-button:hover]:text-sky-700 [&_.fc-button-active]:bg-sky-100 [&_.fc-button-active]:border-sky-400 [&_.fc-button-active]:text-sky-700 [&_.fc-button-active]:shadow-sm [&_.fc-daygrid-day-number]:text-slate-700 [&_.fc-daygrid-day-number]:font-medium [&_.fc-col-header-cell]:bg-gradient-to-b [&_.fc-col-header-cell]:from-slate-50 [&_.fc-col-header-cell]:to-slate-100 [&_.fc-col-header-cell]:text-slate-700 [&_.fc-col-header-cell]:font-semibold [&_.fc-col-header-cell]:py-3 [&_.fc-day-today]:bg-gradient-to-br [&_.fc-day-today]:from-sky-50 [&_.fc-day-today]:to-blue-50 [&_.fc-day-today]:border-2 [&_.fc-day-today]:border-sky-300 [&_.fc-timegrid-slot]:min-h-[2.5em] [&_.fc-event]:cursor-pointer [&_.fc-event]:transition-all [&_.fc-event:hover]:shadow-md [&_.fc-event:hover]:scale-[1.02] [&_.fc-event-title]:font-medium [&_.fc-event-title]:px-1 [&_.fc-event-title]:text-sm [&_.fc-event-title]:font-semibold [&_.fc-daygrid-event]:text-white [&_.fc-timegrid-event]:text-white">
+					<div className="[&_.fc-toolbar-title]:text-xl [&_.fc-toolbar-title]:font-bold [&_.fc-toolbar-title]:text-slate-800 [&_.fc-button]:border-slate-300 [&_.fc-button]:bg-white [&_.fc-button]:text-slate-700 [&_.fc-button]:font-medium [&_.fc-button:hover]:border-sky-400 [&_.fc-button:hover]:bg-sky-50 [&_.fc-button:hover]:text-sky-700 [&_.fc-button-active]:bg-sky-100 [&_.fc-button-active]:border-sky-400 [&_.fc-button-active]:text-sky-700 [&_.fc-button-active]:shadow-sm [&_.fc-daygrid-day-number]:text-slate-700 [&_.fc-daygrid-day-number]:font-medium [&_.fc-col-header-cell]:bg-gradient-to-b [&_.fc-col-header-cell]:from-slate-50 [&_.fc-col-header-cell]:to-slate-100 [&_.fc-col-header-cell]:text-slate-700 [&_.fc-col-header-cell]:font-semibold [&_.fc-col-header-cell]:py-3 [&_.fc-day-today]:bg-gradient-to-br [&_.fc-day-today]:from-sky-50 [&_.fc-day-today]:to-blue-50 [&_.fc-day-today]:border-2 [&_.fc-day-today]:border-sky-300 [&_.fc-timegrid-slot]:min-h-[2.5em] [&_.fc-event]:cursor-pointer [&_.fc-event]:transition-all [&_.fc-event:hover]:shadow-md [&_.fc-event:hover]:scale-[1.02] [&_.fc-event-title]:font-medium [&_.fc-event-title]:px-1 [&_.fc-event-title]:text-sm [&_.fc-event-title]:font-semibold [&_.fc-daygrid-event]:text-white [&_.fc-timegrid-event]:text-white [&_.fc-timegrid-slot-label]:text-slate-700 [&_.fc-timegrid-slot-label]:font-semibold [&_.fc-timegrid-slot-label]:font-medium [&_.fc-timegrid-axis]:text-slate-700 [&_.fc-timegrid-axis]:font-medium">
 						<FullCalendar
 							ref={calendarRef}
 							plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -1277,7 +1284,7 @@ export default function Calendar() {
 									...todayActivities.map(activity => ({
 										id: activity.id,
 										type: 'activity' as const,
-										title: activity.activityType,
+										title: (activity.activityType === 'Other' && activity.description) ? activity.description : activity.activityType,
 										startTime: new Date(activity.startTime),
 										endTime: new Date(activity.endTime),
 										description: activity.description,
