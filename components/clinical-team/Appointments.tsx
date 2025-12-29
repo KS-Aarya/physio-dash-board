@@ -2360,7 +2360,6 @@ export default function Appointments() {
 													};
 												});
 											}}
-											min={new Date().toISOString().split('T')[0]}
 											className="input-base mt-2"
 											required
 										/>
@@ -2876,7 +2875,6 @@ export default function Appointments() {
 																			type="date"
 																			value={dateTimeDraft.date}
 																			onChange={e => setDateTimeDraft(prev => ({ ...prev, date: e.target.value }))}
-																			min={new Date().toISOString().split('T')[0]}
 																			className="input-base text-xs"
 																			required
 																		/>

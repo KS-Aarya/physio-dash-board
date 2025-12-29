@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, doc, query, where, getDocs, onSnapshot, orderBy, updateDoc, addDoc, setDoc, serverTimestamp, type Timestamp, type QuerySnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { generatePhysiotherapyReportPDF, generateStrengthConditioningPDF, type StrengthConditioningData, type ReportSection } from '@/lib/pdfGenerator';
 import type { PatientRecordFull } from '@/lib/types';
@@ -440,6 +441,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 	const [loadingStrengthConditioning, setLoadingStrengthConditioning] = useState(false);
 	const [savingStrengthConditioning, setSavingStrengthConditioning] = useState(false);
 	const [savedStrengthConditioningMessage, setSavedStrengthConditioningMessage] = useState(false);
+	const [uploadingPdf, setUploadingPdf] = useState(false);
+	const [uploadedPdfUrl, setUploadedPdfUrl] = useState<string | null>(null);
 	const strengthConditioningUnsubscribeRef = useRef<(() => void) | null>(null);
 	
 	// Form state
@@ -591,11 +594,16 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 							// Initialize formData with strength conditioning data if editable
 							if (editable) {
 								setStrengthConditioningFormData(data);
+								// Set uploaded PDF URL if it exists
+								if (data.uploadedPdfUrl) {
+									setUploadedPdfUrl(data.uploadedPdfUrl);
+								}
 							}
 						} else {
 							setStrengthConditioningData(null);
 							if (editable) {
 								setStrengthConditioningFormData({});
+								setUploadedPdfUrl(null);
 							}
 						}
 						setLoadingStrengthConditioning(false);
@@ -1308,6 +1316,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 		// Preserve current form data to prevent it from being cleared
 		const dataToSave = {
 			...strengthConditioningFormData,
+			uploadedPdfUrl: uploadedPdfUrl || strengthConditioningFormData.uploadedPdfUrl || null,
 			therapistName: strengthConditioningFormData.therapistName || user?.displayName || user?.email || '',
 			patientId: reportPatientData.patientId,
 			patientName: reportPatientData.name,
@@ -1336,6 +1345,53 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 		}
 	};
 
+	// Handle PDF upload for strength and conditioning
+	const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file || !patientId) {
+			return;
+		}
+
+		// Validate file type
+		if (file.type !== 'application/pdf') {
+			alert('Please upload a PDF file only.');
+			return;
+		}
+
+		// Validate file size (max 10MB)
+		if (file.size > 10 * 1024 * 1024) {
+			alert('File size must be less than 10MB.');
+			return;
+		}
+
+		setUploadingPdf(true);
+		try {
+			const timestamp = Date.now();
+			const fileName = `strength-conditioning-${patientId}-${timestamp}.pdf`;
+			const storageRef = ref(storage, `strength-conditioning-reports/${patientId}/${fileName}`);
+			
+			await uploadBytes(storageRef, file);
+			const downloadURL = await getDownloadURL(storageRef);
+			
+			setUploadedPdfUrl(downloadURL);
+			setStrengthConditioningFormData(prev => ({
+				...prev,
+				uploadedPdfUrl: downloadURL,
+			}));
+			
+			alert('PDF uploaded successfully!');
+		} catch (error) {
+			console.error('Failed to upload PDF:', error);
+			alert('Failed to upload PDF. Please try again.');
+		} finally {
+			setUploadingPdf(false);
+			// Reset input
+			if (event.target) {
+				event.target.value = '';
+			}
+		}
+	};
+
 	// Handle PDF download for strength and conditioning
 	const handleDownloadStrengthConditioningPDF = async () => {
 		try {
@@ -1354,6 +1410,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 					email: reportPatientData.email || '',
 				},
 				formData: strengthConditioningFormData as StrengthConditioningData,
+				uploadedPdfUrl: uploadedPdfUrl || strengthConditioningFormData.uploadedPdfUrl || null,
 			});
 		} catch (error) {
 			console.error('Error downloading PDF:', error);
@@ -3335,6 +3392,45 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 												</option>
 											))}
 										</select>
+									</div>
+
+									{/* PDF Upload */}
+									<div className="mb-6">
+										<label className="block text-sm font-semibold text-slate-700 mb-2">
+											Upload PDF Document
+										</label>
+										<div className="flex items-center gap-3">
+											<label className="inline-flex items-center rounded-lg border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 cursor-pointer">
+												<i className="fas fa-upload mr-2" aria-hidden="true" />
+												{uploadingPdf ? 'Uploading...' : 'Upload PDF'}
+												<input
+													type="file"
+													accept=".pdf"
+													onChange={handlePdfUpload}
+													disabled={uploadingPdf}
+													className="hidden"
+												/>
+											</label>
+											{uploadedPdfUrl || strengthConditioningFormData.uploadedPdfUrl ? (
+												<div className="flex items-center gap-2 text-sm text-emerald-600">
+													<i className="fas fa-check-circle" aria-hidden="true" />
+													<span>PDF uploaded</span>
+													<a
+														href={(uploadedPdfUrl || strengthConditioningFormData.uploadedPdfUrl) || undefined}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="text-sky-600 hover:text-sky-700 underline"
+													>
+														View
+													</a>
+												</div>
+											) : (
+												<span className="text-sm text-slate-500">No PDF uploaded</span>
+											)}
+										</div>
+										<p className="mt-1 text-xs text-slate-500">
+											Upload a PDF document that will be included in the downloaded report. Maximum file size: 10MB
+										</p>
 									</div>
 
 									{/* Athlete Profile */}
