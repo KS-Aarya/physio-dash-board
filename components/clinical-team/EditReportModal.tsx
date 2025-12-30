@@ -4915,11 +4915,11 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 						{editable && (reportPatientData || strengthConditioningData) && (
 							<button
 								type="button"
-								onClick={handleSave}
-								disabled={saving}
+								onClick={activeReportTab === 'strength-conditioning' ? handleSaveStrengthConditioning : handleSave}
+								disabled={activeReportTab === 'strength-conditioning' ? savingStrengthConditioning : saving}
 								className="inline-flex items-center rounded-lg border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
 							>
-								{saving ? (
+								{(activeReportTab === 'strength-conditioning' ? savingStrengthConditioning : saving) ? (
 									<>
 										<div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
 										Saving...
