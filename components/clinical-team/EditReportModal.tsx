@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { collection, doc, query, where, getDocs, onSnapshot, orderBy, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp, type Timestamp, type QuerySnapshot } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, onSnapshot, orderBy, updateDoc, addDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, type Timestamp, type QuerySnapshot } from 'firebase/firestore';
 import { db, storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -1387,7 +1387,11 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 
 	// Handle save for strength conditioning
 	const handleSaveStrengthConditioning = async () => {
-		if (!reportPatientData || savingStrengthConditioning || !patientId) {
+		if (!editable || !reportPatientData || savingStrengthConditioning || !patientId) {
+			if (!editable) {
+				console.log('Save blocked: not editable');
+				return;
+			}
 			alert('Please select a patient first');
 			return;
 		}
@@ -1405,9 +1409,19 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 
 		setSavingStrengthConditioning(true);
 		try {
-			// Use patientDocId if available, otherwise fall back to patientId
-			const documentId = patientDocId || patientId;
-			const docRef = doc(db, 'strengthConditioningReports', documentId);
+			// Get patient document ID (use stored patientDocId if available, otherwise fetch it)
+			let documentIdToUse = patientDocId;
+			if (!documentIdToUse) {
+				const patientSnap = await getDocs(query(collection(db, 'patients'), where('patientId', '==', patientId)));
+				if (patientSnap.empty) {
+					alert('Patient not found. Please try again.');
+					setSavingStrengthConditioning(false);
+					return;
+				}
+				documentIdToUse = patientSnap.docs[0].id;
+				setPatientDocId(documentIdToUse); // Store it for future use
+			}
+			const docRef = doc(db, 'strengthConditioningReports', documentIdToUse);
 			
 			// Create version history before updating
 			// Get current data to save as version
@@ -1489,7 +1503,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 			// Handle session completion if checkbox is checked
 			if (sessionCompleted && reportPatientData) {
 				try {
-					const patientRef = doc(db, 'patients', patientDocId || patientId);
+					const patientRef = doc(db, 'patients', documentIdToUse);
 					const totalSessionsValue =
 						typeof reportPatientData.totalSessionsRequired === 'number'
 							? reportPatientData.totalSessionsRequired
@@ -1518,7 +1532,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 						// Mark appointment as completed
 						const patientForProgress: PatientRecordFull = {
 							...reportPatientData,
-							id: patientDocId || patientId,
+							id: documentIdToUse,
 							totalSessionsRequired: totalSessionsValue ?? reportPatientData.totalSessionsRequired,
 							remainingSessions: newRemainingSessions,
 						};
@@ -1997,6 +2011,84 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 		}
 	};
 
+	// Helper function to renumber versions sequentially
+	const renumberVersionsSequentially = async (collectionName: string, patientId: string): Promise<void> => {
+		try {
+			// Try with orderBy first
+			try {
+				const versionsQuery = query(
+					collection(db, collectionName),
+					where('patientId', '==', patientId),
+					orderBy('version', 'asc')
+				);
+				const versionsSnapshot = await getDocs(versionsQuery);
+				
+				if (versionsSnapshot.docs.length === 0) return;
+				
+				// Check if versions are already sequential
+				let needsRenumbering = false;
+				versionsSnapshot.docs.forEach((docSnap, index) => {
+					const currentVersion = docSnap.data().version as number;
+					if (currentVersion !== index + 1) {
+						needsRenumbering = true;
+					}
+				});
+				
+				if (needsRenumbering) {
+					const batch = writeBatch(db);
+					versionsSnapshot.docs.forEach((docSnap, index) => {
+						const newVersionNumber = index + 1;
+						const currentVersion = docSnap.data().version as number;
+						if (currentVersion !== newVersionNumber) {
+							batch.update(docSnap.ref, { version: newVersionNumber });
+						}
+					});
+					await batch.commit();
+				}
+			} catch (orderByError: any) {
+				// If orderBy fails, try without it and sort manually
+				if (orderByError.code === 'failed-precondition' || orderByError.message?.includes('index')) {
+					const versionsQuery = query(
+						collection(db, collectionName),
+						where('patientId', '==', patientId)
+					);
+					const versionsSnapshot = await getDocs(versionsQuery);
+					const versions = versionsSnapshot.docs.map(docSnap => ({
+						id: docSnap.id,
+						ref: docSnap.ref,
+						version: docSnap.data().version as number,
+					})).sort((a, b) => a.version - b.version);
+					
+					if (versions.length === 0) return;
+					
+					// Check if versions are already sequential
+					let needsRenumbering = false;
+					versions.forEach((v, index) => {
+						if (v.version !== index + 1) {
+							needsRenumbering = true;
+						}
+					});
+					
+					if (needsRenumbering) {
+						const batch = writeBatch(db);
+						versions.forEach((v, index) => {
+							const newVersionNumber = index + 1;
+							if (v.version !== newVersionNumber) {
+								batch.update(v.ref, { version: newVersionNumber });
+							}
+						});
+						await batch.commit();
+					}
+				} else {
+					throw orderByError;
+				}
+			}
+		} catch (error) {
+			console.warn('Failed to renumber versions sequentially', error);
+			// Don't throw - continue loading versions even if renumbering fails
+		}
+	};
+
 	// Load version history
 	const loadVersionHistory = async () => {
 		if (!patientId) return;
@@ -2012,6 +2104,10 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 					return;
 				}
 				try {
+					// First, renumber versions sequentially if needed
+					await renumberVersionsSequentially('strengthConditioningReportVersions', reportPatientData.patientId);
+					
+					// Then load the renumbered versions
 					const versionsQuery = query(
 						collection(db, 'strengthConditioningReportVersions'),
 						where('patientId', '==', reportPatientData.patientId),
@@ -2036,6 +2132,10 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 					// If orderBy fails (missing index), try without it
 					if (scError.code === 'failed-precondition' || scError.message?.includes('index')) {
 						try {
+							// First, renumber versions sequentially if needed
+							await renumberVersionsSequentially('strengthConditioningReportVersions', reportPatientData.patientId);
+							
+							// Then load the renumbered versions
 							const versionsQuery = query(
 								collection(db, 'strengthConditioningReportVersions'),
 								where('patientId', '==', reportPatientData.patientId)
@@ -2079,6 +2179,10 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 					setVersionHistory([]);
 					return;
 				}
+				// First, renumber versions sequentially if needed
+				await renumberVersionsSequentially('reportVersions', reportPatientData.patientId);
+				
+				// Then load the renumbered versions
 				const versionsQuery = query(
 					collection(db, 'reportVersions'),
 					where('patientId', '==', reportPatientData.patientId),
@@ -2134,6 +2238,61 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 			
 			const versionRef = doc(db, collectionName, version.id);
 			await deleteDoc(versionRef);
+			
+			// Get all remaining versions and renumber them sequentially
+			try {
+				const versionsQuery = query(
+					collection(db, collectionName),
+					where('patientId', '==', reportPatientData?.patientId),
+					orderBy('version', 'asc')
+				);
+				const versionsSnapshot = await getDocs(versionsQuery);
+				
+				if (versionsSnapshot.docs.length > 0) {
+					const batch = writeBatch(db);
+					versionsSnapshot.docs.forEach((docSnap, index) => {
+						const newVersionNumber = index + 1;
+						const currentVersion = docSnap.data().version as number;
+						if (currentVersion !== newVersionNumber) {
+							batch.update(docSnap.ref, { version: newVersionNumber });
+						}
+					});
+					await batch.commit();
+				}
+			} catch (renumberError: any) {
+				// If orderBy fails, try without it and sort manually
+				if (renumberError.code === 'failed-precondition' || renumberError.message?.includes('index')) {
+					try {
+						const versionsQuery = query(
+							collection(db, collectionName),
+							where('patientId', '==', reportPatientData?.patientId)
+						);
+						const versionsSnapshot = await getDocs(versionsQuery);
+						const versions = versionsSnapshot.docs.map(docSnap => ({
+							id: docSnap.id,
+							ref: docSnap.ref,
+							version: docSnap.data().version as number,
+						})).sort((a, b) => a.version - b.version);
+						
+						if (versions.length > 0) {
+							const batch = writeBatch(db);
+							versions.forEach((v, index) => {
+								const newVersionNumber = index + 1;
+								if (v.version !== newVersionNumber) {
+									batch.update(v.ref, { version: newVersionNumber });
+								}
+							});
+							await batch.commit();
+						}
+					} catch (retryError) {
+						console.warn('Failed to renumber versions after deletion', retryError);
+						// Continue anyway - versions will still be deleted
+					}
+				} else {
+					console.warn('Failed to renumber versions after deletion', renumberError);
+					// Continue anyway - versions will still be deleted
+				}
+			}
 			
 			// Reload version history
 			await loadVersionHistory();
