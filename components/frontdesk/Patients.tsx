@@ -2592,17 +2592,15 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 			hydration: reportPatientData.hydration || '4',
 			nutrition: reportPatientData.nutrition || '',
 			chiefComplaint: reportPatientData.chiefComplaint || reportPatientData.complaints || '',
-			onsetType: reportPatientData.onsetType || '',
 			duration: reportPatientData.duration || '',
 			mechanismOfInjury: reportPatientData.mechanismOfInjury || '',
-			painType: reportPatientData.painType || reportPatientData.typeOfPain || '',
+			painType: reportPatientData.painType || '',
 			painIntensity: reportPatientData.painIntensity || reportPatientData.vasScale || '',
 			aggravatingFactor: reportPatientData.aggravatingFactor || '',
 			relievingFactor: reportPatientData.relievingFactor || '',
 			siteSide: reportPatientData.siteSide || '',
 			onset: reportPatientData.onset || '',
 			natureOfInjury: reportPatientData.natureOfInjury || '',
-			typeOfPain: reportPatientData.typeOfPain || '',
 			vasScale: reportPatientData.vasScale || '5',
 			rom: reportPatientData.rom || {},
 			mmt: reportPatientData.mmt || {},
@@ -2621,7 +2619,6 @@ const handleRegisterPatient = async (event: React.FormEvent<HTMLFormElement>) =>
 			crepitus: reportPatientData.crepitus || '',
 			odema: reportPatientData.odema || '',
 			physioName: reportPatientData.physioName || '',
-			physioRegNo: reportPatientData.physioId || reportPatientData.physioRegNo || '',
 		}, sections ? { sections } : undefined);
 	};
 

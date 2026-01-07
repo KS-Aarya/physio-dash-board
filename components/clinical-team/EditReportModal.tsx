@@ -781,17 +781,15 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 			hydration: displayData.hydration || '4',
 			nutrition: displayData.nutrition || '',
 			chiefComplaint: displayData.chiefComplaint || displayData.complaints || '',
-			onsetType: displayData.onsetType || '',
 			duration: displayData.duration || '',
 			mechanismOfInjury: displayData.mechanismOfInjury || '',
-			painType: displayData.painType || displayData.typeOfPain || '',
 			painIntensity: displayData.painIntensity || displayData.vasScale || '',
+			painType: displayData.painType || '',
 			aggravatingFactor: displayData.aggravatingFactor || '',
 			relievingFactor: displayData.relievingFactor || '',
 			siteSide: displayData.siteSide || '',
 			onset: displayData.onset || '',
 			natureOfInjury: displayData.natureOfInjury || '',
-			typeOfPain: displayData.typeOfPain || '',
 			vasScale: displayData.vasScale || '5',
 			rom: displayData.rom || {},
 			mmt: displayData.mmt || {},
@@ -812,19 +810,13 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 			crepitus: displayData.crepitus || '',
 			odema: displayData.odema || '',
 			specialTest: displayData.specialTest || '',
-			differentialDiagnosis: displayData.differentialDiagnosis || '',
 			clinicalDiagnosis: displayData.clinicalDiagnosis || '',
 			finalDiagnosis: displayData.finalDiagnosis || '',
 			shortTermGoals: displayData.shortTermGoals || '',
 			longTermGoals: displayData.longTermGoals || '',
 			rehabProtocol: displayData.rehabProtocol || '',
 			treatmentProvided: displayData.treatmentProvided || '',
-			treatmentPlan: displayData.treatmentPlan || [],
-			progressNotes: displayData.progressNotes || '',
 			advice: displayData.advice || '',
-			recommendations: displayData.recommendations || '',
-			managementRemarks: displayData.managementRemarks || '',
-			physiotherapistRemarks: displayData.physiotherapistRemarks || '',
 			nextFollowUpDate: displayData.nextFollowUpDate || '',
 			nextFollowUpTime: displayData.nextFollowUpTime || '',
 			followUpVisits: displayData.followUpVisits || [],
@@ -835,7 +827,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 			currentFunctionalAbility: displayData.currentFunctionalAbility || '',
 			complianceWithHEP: displayData.complianceWithHEP || '',
 			physioName: displayData.physioName || '',
-			physioRegNo: displayData.physioId || '',
 			patientType: displayData.patientType || '',
 		};
 	};
@@ -1761,24 +1752,18 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 				onset: formData.onset || '',
 				duration: formData.duration || '',
 				natureOfInjury: formData.natureOfInjury || '',
-				typeOfPain: formData.typeOfPain || '',
 				vasScale: formData.vasScale || '',
 				aggravatingFactor: formData.aggravatingFactor || '',
 				relievingFactor: formData.relievingFactor || '',
 				rom: formData.rom || {},
 				treatmentProvided: formData.treatmentProvided || '',
-				progressNotes: formData.progressNotes || '',
 				physioName: formData.physioName || '',
-				physioId: formData.physioId || '',
 				dateOfConsultation: formData.dateOfConsultation || '',
 				referredBy: formData.referredBy || '',
 				chiefComplaint: formData.chiefComplaint || '',
-				onsetType: formData.onsetType || '',
 				mechanismOfInjury: formData.mechanismOfInjury || '',
-				painType: formData.painType || '',
 				painIntensity: formData.painIntensity || '',
 				clinicalDiagnosis: formData.clinicalDiagnosis || '',
-				treatmentPlan: formData.treatmentPlan || [],
 				followUpVisits: formData.followUpVisits || [],
 				followUpAssessment: formData.followUpAssessment || '',
 				currentPainStatus: formData.currentPainStatus || '',
@@ -1786,8 +1771,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 				currentStrength: formData.currentStrength || '',
 				currentFunctionalAbility: formData.currentFunctionalAbility || '',
 				complianceWithHEP: formData.complianceWithHEP || '',
-				recommendations: formData.recommendations || '',
-				physiotherapistRemarks: formData.physiotherapistRemarks || '',
 				built: formData.built || '',
 				posture: formData.posture || '',
 				gaitAnalysis: formData.gaitAnalysis || '',
@@ -1808,7 +1791,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 				odema: formData.odema || '',
 				mmt: formData.mmt || {},
 				specialTest: formData.specialTest || '',
-				differentialDiagnosis: formData.differentialDiagnosis || '',
 				finalDiagnosis: formData.finalDiagnosis || '',
 				shortTermGoals: formData.shortTermGoals || '',
 				longTermGoals: formData.longTermGoals || '',
@@ -2882,17 +2864,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											/>
 										</div>
 
-										{/* Progress */}
-										<div className="mb-8">
-											<h3 className="mb-4 text-sm font-semibold text-sky-600">Progress</h3>
-											<textarea
-												value={formData.progressNotes || ''}
-												onChange={e => handleFieldChange('progressNotes', e.target.value)}
-												className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-												rows={5}
-												placeholder="Enter progress notes..."
-											/>
-										</div>
 
 										{/* Treatment */}
 										<div className="mb-8">
@@ -3133,15 +3104,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										/>
 									</div>
 									<div>
-										<label className="block text-xs font-medium text-slate-500">Onset Type</label>
-										<input
-											type="text"
-											value={formData.onsetType || ''}
-											onChange={e => handleFieldChange('onsetType', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
 										<label className="block text-xs font-medium text-slate-500">Duration</label>
 										<input
 											type="text"
@@ -3165,15 +3127,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											type="text"
 											value={formData.mechanismOfInjury || ''}
 											onChange={e => handleFieldChange('mechanismOfInjury', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Type of Pain</label>
-										<input
-											type="text"
-											value={formData.typeOfPain || ''}
-											onChange={e => handleFieldChange('typeOfPain', e.target.value)}
 											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
 										/>
 									</div>
@@ -3633,17 +3586,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										/>
 									</div>
 									<div>
-										<h4 className="mb-2 text-sm font-semibold text-slate-700">iv) Differential Diagnosis</h4>
-										<textarea
-											value={formData.differentialDiagnosis || ''}
-											onChange={e => handleFieldChange('differentialDiagnosis', e.target.value)}
-											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-											placeholder="Possible differentials"
-										/>
-									</div>
-									<div>
-										<h4 className="mb-2 text-sm font-semibold text-slate-700">v) Clinical Diagnosis</h4>
+										<h4 className="mb-2 text-sm font-semibold text-slate-700">iv) Clinical Diagnosis</h4>
 										<textarea
 											value={formData.clinicalDiagnosis || ''}
 											onChange={e => handleFieldChange('clinicalDiagnosis', e.target.value)}
@@ -3653,7 +3596,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										/>
 									</div>
 									<div>
-										<h4 className="mb-2 text-sm font-semibold text-slate-700">vi) Diagnosis</h4>
+										<h4 className="mb-2 text-sm font-semibold text-slate-700">v) Diagnosis</h4>
 										<textarea
 											value={formData.finalDiagnosis || ''}
 											onChange={e => handleFieldChange('finalDiagnosis', e.target.value)}
@@ -3706,56 +3649,10 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										/>
 									</div>
 									<div>
-										<label className="block text-xs font-medium text-slate-500">v) Treatment Plan</label>
-										<textarea
-											value={Array.isArray(formData.treatmentPlan) ? formData.treatmentPlan.join('\n') : (formData.treatmentPlan || '')}
-											onChange={e => handleFieldChange('treatmentPlan', e.target.value.split('\n').filter(line => line.trim()))}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-											placeholder="Enter treatment plan items (one per line)"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">vi) Progress Notes</label>
-										<textarea
-											value={formData.progressNotes || ''}
-											onChange={e => handleFieldChange('progressNotes', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">vii) Advice</label>
+										<label className="block text-xs font-medium text-slate-500">v) Advice</label>
 										<textarea
 											value={formData.advice || ''}
 											onChange={e => handleFieldChange('advice', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">viii) Recommendations</label>
-										<textarea
-											value={formData.recommendations || ''}
-											onChange={e => handleFieldChange('recommendations', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">ix) Remarks</label>
-										<textarea
-											value={formData.managementRemarks || ''}
-											onChange={e => handleFieldChange('managementRemarks', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">x) Physiotherapist Remarks</label>
-										<textarea
-											value={formData.physiotherapistRemarks || ''}
-											onChange={e => handleFieldChange('physiotherapistRemarks', e.target.value)}
 											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
 											rows={3}
 										/>
@@ -3920,15 +3817,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											type="text"
 											value={formData.physioName || ''}
 											onChange={e => handleFieldChange('physioName', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Physio ID / Registration Number</label>
-										<input
-											type="text"
-											value={formData.physioId || ''}
-											onChange={e => handleFieldChange('physioId', e.target.value)}
 											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
 										/>
 									</div>
@@ -5730,12 +5618,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 																				longTermGoals: versionData.longTermGoals || '',
 																				rehabProtocol: versionData.rehabProtocol || '',
 																				treatmentProvided: versionData.treatmentProvided || '',
-																				treatmentPlan: versionData.treatmentPlan || [],
-																				progressNotes: versionData.progressNotes || '',
 																				advice: versionData.advice || '',
-																				recommendations: versionData.recommendations || '',
-																				managementRemarks: versionData.managementRemarks || '',
-																				physiotherapistRemarks: versionData.physiotherapistRemarks || '',
 																				nextFollowUpDate: versionData.nextFollowUpDate || '',
 																				nextFollowUpTime: versionData.nextFollowUpTime || '',
 																				followUpVisits: versionData.followUpVisits || [],
@@ -5745,7 +5628,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 																				currentFunctionalAbility: versionData.currentFunctionalAbility || '',
 																				complianceWithHEP: versionData.complianceWithHEP || '',
 																				physioName: versionData.physioName || '',
-																				physioRegNo: versionData.physioId || '',
 																				patientType: versionData.patientType || '',
 																			};
 																			await generatePhysiotherapyReportPDF(reportData);
@@ -6704,14 +6586,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 														</div>
 													</div>
 												)}
-												{physioData.typeOfPain && (
-													<div>
-														<label className="block text-xs font-medium text-slate-500 mb-1">Type of Pain</label>
-														<div className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-															{physioData.typeOfPain}
-														</div>
-													</div>
-												)}
 												{physioData.aggravatingFactor && (
 													<div>
 														<label className="block text-xs font-medium text-slate-500 mb-1">Aggravating Factor</label>
@@ -7111,36 +6985,17 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										</div>
 									)}
 
-									{physioData.physiotherapistRemarks && (
-										<div>
-											<label className="block text-xs font-medium text-slate-500 mb-1">Physiotherapist Remarks</label>
-											<div className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 whitespace-pre-wrap">
-												{physioData.physiotherapistRemarks}
-											</div>
-										</div>
-									)}
-
 									{/* Physiotherapist Information */}
-									{(physioData.physioName || physioData.physioId) && (
+									{physioData.physioName && (
 										<div>
 											<h3 className="text-sm font-semibold text-sky-600 mb-3 border-b border-sky-200 pb-2">Physiotherapist Information</h3>
 											<div className="grid gap-4 sm:grid-cols-2">
-												{physioData.physioName && (
-													<div>
-														<label className="block text-xs font-medium text-slate-500 mb-1">Physiotherapist Name</label>
-														<div className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-															{physioData.physioName}
-														</div>
+												<div>
+													<label className="block text-xs font-medium text-slate-500 mb-1">Physiotherapist Name</label>
+													<div className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+														{physioData.physioName}
 													</div>
-												)}
-												{physioData.physioId && (
-													<div>
-														<label className="block text-xs font-medium text-slate-500 mb-1">Physiotherapist ID</label>
-														<div className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-															{physioData.physioId}
-														</div>
-													</div>
-												)}
+												</div>
 											</div>
 										</div>
 									)}
@@ -7259,12 +7114,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											longTermGoals: versionData.longTermGoals || '',
 											rehabProtocol: versionData.rehabProtocol || '',
 											treatmentProvided: versionData.treatmentProvided || '',
-											treatmentPlan: versionData.treatmentPlan || [],
-											progressNotes: versionData.progressNotes || '',
 											advice: versionData.advice || '',
-											recommendations: versionData.recommendations || '',
-											managementRemarks: versionData.managementRemarks || '',
-											physiotherapistRemarks: versionData.physiotherapistRemarks || '',
 											nextFollowUpDate: versionData.nextFollowUpDate || '',
 											nextFollowUpTime: versionData.nextFollowUpTime || '',
 											followUpVisits: versionData.followUpVisits || [],

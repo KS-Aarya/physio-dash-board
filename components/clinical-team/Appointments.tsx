@@ -2885,6 +2885,10 @@ export default function Appointments() {
 												// Get billing status for this appointment
 												const billingRecord = billingRecords.find(b => b.appointmentId === appointment.appointmentId);
 												const paymentStatus = billingRecord?.status || null;
+												
+												// Check if patient's typeOfOrganization is VIP
+												const typeOfOrganization = (patientDetails as any)?.typeOfOrganization || patientDetails?.patientType || '';
+												const isVIP = typeOfOrganization?.toUpperCase() === 'VIP';
 
 												return (
 													<tr key={appointment.appointmentId}>
@@ -2985,7 +2989,7 @@ export default function Appointments() {
 																	>
 																		{paymentStatus === 'Completed' || paymentStatus === 'Auto-Paid'
 																			? 'Completed'
-																			: 'Pending'}
+																			: isVIP ? 'VIP' : 'Pending'}
 																	</span>
 																	{(paymentStatus === 'Completed' || paymentStatus === 'Auto-Paid') && billingRecord?.amount !== undefined && (
 																		<span className="text-xs font-semibold text-slate-700">

@@ -336,17 +336,15 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 			hydration: reportPatientData.hydration || '4',
 			nutrition: reportPatientData.nutrition || '',
 			chiefComplaint: reportPatientData.chiefComplaint || reportPatientData.complaints || '',
-			onsetType: reportPatientData.onsetType || '',
 			duration: reportPatientData.duration || '',
 			mechanismOfInjury: reportPatientData.mechanismOfInjury || '',
-			painType: reportPatientData.painType || reportPatientData.typeOfPain || '',
 			painIntensity: reportPatientData.painIntensity || reportPatientData.vasScale || '',
+			painType: reportPatientData.painType || '',
 			aggravatingFactor: reportPatientData.aggravatingFactor || '',
 			relievingFactor: reportPatientData.relievingFactor || '',
 			siteSide: reportPatientData.siteSide || '',
 			onset: reportPatientData.onset || '',
 			natureOfInjury: reportPatientData.natureOfInjury || '',
-			typeOfPain: reportPatientData.typeOfPain || '',
 			vasScale: reportPatientData.vasScale || '5',
 			rom: reportPatientData.rom || {},
 			mmt: reportPatientData.mmt || {},
@@ -367,7 +365,6 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 			crepitus: reportPatientData.crepitus || '',
 			odema: reportPatientData.odema || '',
 			specialTest: reportPatientData.specialTest || '',
-			differentialDiagnosis: reportPatientData.differentialDiagnosis || '',
 			finalDiagnosis: reportPatientData.finalDiagnosis || '',
 			shortTermGoals: reportPatientData.shortTermGoals || '',
 			longTermGoals: reportPatientData.longTermGoals || '',
@@ -383,7 +380,6 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 			currentFunctionalAbility: reportPatientData.currentFunctionalAbility || '',
 			complianceWithHEP: reportPatientData.complianceWithHEP || '',
 			physioName: reportPatientData.physioName || '',
-			physioRegNo: reportPatientData.physioId || '',
 			patientType: reportPatientData.patientType || '',
 		};
 	};
@@ -843,10 +839,19 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 														/>
 													</div>
 													<div>
-														<label className="block text-xs font-medium text-slate-500">Type of Pain</label>
+														<label className="block text-xs font-medium text-slate-500">Pain Type</label>
 														<input
 															type="text"
-															value={displayData.typeOfPain || ''}
+															value={displayData.painType || ''}
+															readOnly
+															className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+														/>
+													</div>
+													<div>
+														<label className="block text-xs font-medium text-slate-500">Pain Intensity</label>
+														<input
+															type="text"
+															value={displayData.painIntensity || ''}
 															readOnly
 															className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
 														/>
@@ -1141,17 +1146,6 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 															/>
 														</div>
 													)}
-													{displayData.differentialDiagnosis && (
-														<div>
-															<label className="block text-xs font-medium text-slate-500">Differential Diagnosis</label>
-															<textarea
-																value={displayData.differentialDiagnosis}
-																readOnly
-																rows={3}
-																className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
-															/>
-														</div>
-													)}
 													{displayData.finalDiagnosis && (
 														<div className="sm:col-span-2">
 															<label className="block text-xs font-medium text-slate-500">Final Diagnosis</label>
@@ -1382,13 +1376,6 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 											</div>
 
 											<div className="mt-6">
-												<p className="text-sm font-semibold text-sky-600">Progress Notes</p>
-												<textarea
-													value={displayData.progressNotes || ''}
-													readOnly
-													rows={3}
-													className="mt-2 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
-												/>
 											</div>
 
 											<div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -1397,15 +1384,6 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 													<input
 														type="text"
 														value={displayData.physioName || ''}
-														readOnly
-														className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
-													/>
-												</div>
-												<div>
-													<label className="block text-xs font-medium text-slate-500">Physio ID</label>
-													<input
-														type="text"
-														value={displayData.physioId || ''}
 														readOnly
 														className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
 													/>
@@ -2003,7 +1981,7 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 																	</div>
 
 																	{/* Pain Assessment */}
-																	{displayData.siteSide || displayData.onset || displayData.duration || displayData.typeOfPain || displayData.vasScale ? (
+																	{displayData.siteSide || displayData.onset || displayData.duration || displayData.painIntensity || displayData.painType || displayData.vasScale ? (
 																		<div>
 																			<h4 className="mb-4 text-base font-semibold text-sky-600">Pain Assessment</h4>
 																			<div className="grid gap-4 sm:grid-cols-2">
@@ -2025,10 +2003,16 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 																						<div className="mt-1 text-sm text-slate-800">{displayData.duration}</div>
 																					</div>
 																				)}
-																				{displayData.typeOfPain && (
+																				{displayData.painType && (
 																					<div>
-																						<label className="block text-xs font-medium text-slate-500">Type of Pain</label>
-																						<div className="mt-1 text-sm text-slate-800">{displayData.typeOfPain}</div>
+																						<label className="block text-xs font-medium text-slate-500">Pain Type</label>
+																						<div className="mt-1 text-sm text-slate-800">{displayData.painType}</div>
+																					</div>
+																				)}
+																				{displayData.painIntensity && (
+																					<div>
+																						<label className="block text-xs font-medium text-slate-500">Pain Intensity</label>
+																						<div className="mt-1 text-sm text-slate-800">{displayData.painIntensity}</div>
 																					</div>
 																				)}
 																				{displayData.vasScale && (
@@ -2058,7 +2042,7 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 																	)}
 
 																	{/* Additional sections can be added here as needed */}
-																	{(displayData.specialTest || displayData.differentialDiagnosis || displayData.finalDiagnosis) && (
+																	{(displayData.specialTest || displayData.finalDiagnosis) && (
 																		<div>
 																			<h4 className="mb-4 text-base font-semibold text-sky-600">Advanced Assessment</h4>
 																			<div className="grid gap-4 sm:grid-cols-2">
@@ -2066,12 +2050,6 @@ export default function ReportModal({ isOpen, patientId, initialTab = 'report', 
 																					<div>
 																						<label className="block text-xs font-medium text-slate-500">Special Test</label>
 																						<div className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{displayData.specialTest}</div>
-																					</div>
-																				)}
-																				{displayData.differentialDiagnosis && (
-																					<div>
-																						<label className="block text-xs font-medium text-slate-500">Differential Diagnosis</label>
-																						<div className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{displayData.differentialDiagnosis}</div>
 																					</div>
 																				)}
 																				{displayData.finalDiagnosis && (

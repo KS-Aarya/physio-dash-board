@@ -21,17 +21,15 @@ export interface PatientReportData {
 	hydration?: string;
 	nutrition?: string;
 	chiefComplaint?: string;
-	onsetType?: string;
 	duration?: string;
 	mechanismOfInjury?: string;
-	painType?: string;
 	painIntensity?: string;
+	painType?: string;
 	aggravatingFactor?: string;
 	relievingFactor?: string;
 	siteSide?: string;
 	onset?: string;
 	natureOfInjury?: string;
-	typeOfPain?: string;
 	vasScale?: string;
 	rom?: Record<string, any>;
 	mmt?: Record<string, any>;
@@ -52,11 +50,11 @@ export interface PatientReportData {
 	crepitus?: string;
 	odema?: string;
 	specialTest?: string;
-	differentialDiagnosis?: string;
 	finalDiagnosis?: string;
 	shortTermGoals?: string;
 	longTermGoals?: string;
 	rehabProtocol?: string;
+	treatmentProvided?: string;
 	advice?: string;
 	managementRemarks?: string;
 	nextFollowUpDate?: string;
@@ -68,7 +66,6 @@ export interface PatientReportData {
 	currentFunctionalAbility?: string;
 	complianceWithHEP?: string;
 	physioName?: string;
-	physioRegNo?: string;
 	patientType?: string;
 }
 
@@ -520,7 +517,8 @@ export async function generatePhysiotherapyReportPDF(
 			['Onset', data.onset || ''],
 			['Duration', data.duration || ''],
 			['Nature of Injury', data.natureOfInjury || ''],
-			['Type of Pain', data.typeOfPain || data.painType || ''],
+			['Pain Type', data.painType || ''],
+			['Pain Intensity', data.painIntensity || ''],
 			['VAS Scale', getVasDescriptor(data.vasScale)],
 			['Aggravating Factors', data.aggravatingFactor || ''],
 			['Relieving Factors', data.relievingFactor || ''],
@@ -635,7 +633,6 @@ export async function generatePhysiotherapyReportPDF(
 	if (includeSection('advancedAssessment')) {
 		const advancedRows: string[][] = [];
 		if (data.specialTest) advancedRows.push(['Special Tests', data.specialTest]);
-		if (data.differentialDiagnosis) advancedRows.push(['Differential Diagnosis', data.differentialDiagnosis]);
 		if (data.finalDiagnosis) advancedRows.push(['Diagnosis', data.finalDiagnosis]);
 		if (advancedRows.length) {
 		autoTable(doc, {
@@ -663,8 +660,8 @@ export async function generatePhysiotherapyReportPDF(
 	if (data.shortTermGoals) managementRows.push(['i) Short Term Goals', data.shortTermGoals]);
 	if (data.longTermGoals) managementRows.push(['ii) Long Term Goals', data.longTermGoals]);
 	if (data.rehabProtocol) managementRows.push(['iii) Rehab Protocol', data.rehabProtocol]);
-	if (data.advice) managementRows.push(['iv) Advice', data.advice]);
-	if (data.managementRemarks) managementRows.push(['v) Remarks', data.managementRemarks]);
+	if (data.treatmentProvided) managementRows.push(['iv) Treatment Provided', data.treatmentProvided]);
+	if (data.advice) managementRows.push(['v) Advice', data.advice]);
 	if (managementRows.length) {
 		autoTable(doc, {
 			startY: y,
@@ -743,10 +740,6 @@ export async function generatePhysiotherapyReportPDF(
 		doc.setFont('helvetica', 'normal');
 		doc.text(data.physioName || '', 65, signatureY);
 
-		doc.setFont('helvetica', 'bold');
-		doc.text('Reg. No:', 150, signatureY);
-		doc.setFont('helvetica', 'normal');
-		doc.text(data.physioRegNo || '', 170, signatureY);
 	}
 
 	// Add footer to all pages that don't have it yet (final pass)
