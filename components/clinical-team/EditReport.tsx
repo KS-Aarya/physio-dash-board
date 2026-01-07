@@ -621,6 +621,20 @@ export default function EditReport() {
 	useEffect(() => {
 		if (showAnalyticsModal) {
 			console.log('Analytics modal should be visible. showAnalyticsModal:', showAnalyticsModal, 'patientId:', analyticsModalPatientId);
+			// Verify modal element exists in DOM after render
+			setTimeout(() => {
+				const modalElement = document.querySelector('[aria-labelledby="analytics-modal-title"]');
+				if (modalElement) {
+					console.log('✅ Analytics modal element found in DOM');
+					const styles = window.getComputedStyle(modalElement);
+					console.log('Modal display:', styles.display);
+					console.log('Modal visibility:', styles.visibility);
+					console.log('Modal z-index:', styles.zIndex);
+					console.log('Modal opacity:', styles.opacity);
+				} else {
+					console.error('❌ Analytics modal element NOT found in DOM');
+				}
+			}, 100);
 		}
 	}, [showAnalyticsModal, analyticsModalPatientId]);
 
@@ -1127,32 +1141,25 @@ export default function EditReport() {
 				onset: formData.onset || '',
 				duration: formData.duration || '',
 				natureOfInjury: formData.natureOfInjury || '',
-				typeOfPain: formData.typeOfPain || '',
 				vasScale: formData.vasScale || '',
 				aggravatingFactor: formData.aggravatingFactor || '',
 				relievingFactor: formData.relievingFactor || '',
 				rom: formData.rom || {},
 				treatmentProvided: formData.treatmentProvided || '',
-				progressNotes: formData.progressNotes || '',
 				physioName: formData.physioName || '',
-				physioId: formData.physioId || '',
 				dateOfConsultation: formData.dateOfConsultation || '',
 				referredBy: formData.referredBy || '',
 				chiefComplaint: formData.chiefComplaint || '',
-				onsetType: formData.onsetType || '',
 				mechanismOfInjury: formData.mechanismOfInjury || '',
-				painType: formData.painType || '',
 				painIntensity: formData.painIntensity || '',
+				painType: formData.painType || '',
 				clinicalDiagnosis: formData.clinicalDiagnosis || '',
-				treatmentPlan: formData.treatmentPlan || [],
 				followUpVisits: formData.followUpVisits || [],
 				currentPainStatus: formData.currentPainStatus || '',
 				currentRom: formData.currentRom || '',
 				currentStrength: formData.currentStrength || '',
 				currentFunctionalAbility: formData.currentFunctionalAbility || '',
 				complianceWithHEP: formData.complianceWithHEP || '',
-				recommendations: formData.recommendations || '',
-				physiotherapistRemarks: formData.physiotherapistRemarks || '',
 				built: formData.built || '',
 				posture: formData.posture || '',
 				gaitAnalysis: formData.gaitAnalysis || '',
@@ -1173,7 +1180,6 @@ export default function EditReport() {
 				odema: formData.odema || '',
 				mmt: formData.mmt || {},
 				specialTest: formData.specialTest || '',
-				differentialDiagnosis: formData.differentialDiagnosis || '',
 				finalDiagnosis: formData.finalDiagnosis || '',
 				shortTermGoals: formData.shortTermGoals || '',
 				longTermGoals: formData.longTermGoals || '',
@@ -3346,6 +3352,64 @@ export default function EditReport() {
 					editable={true}
 				/>
 
+				{/* Analytics Modal */}
+				{showAnalyticsModal && analyticsModalPatientId && (
+					<div 
+						className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm px-4 py-6"
+						style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+						onClick={(e) => {
+							// Close modal when clicking outside
+							if (e.target === e.currentTarget) {
+								setShowAnalyticsModal(false);
+								setAnalyticsModalPatientId(null);
+								setAnalyticsModalPatientName(null);
+							}
+						}}
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="analytics-modal-title"
+					>
+						<div 
+							className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[90vh] flex flex-col"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 flex-shrink-0">
+								<div>
+									<h2 id="analytics-modal-title" className="text-lg font-semibold text-slate-900">Progress Analytics</h2>
+									<p className="text-xs text-slate-500">
+										{analyticsModalPatientName && `Analytics for ${analyticsModalPatientName}`}
+										{analyticsModalPatientId && ` (${analyticsModalPatientId})`}
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										setShowAnalyticsModal(false);
+										setAnalyticsModalPatientId(null);
+										setAnalyticsModalPatientName(null);
+									}}
+									className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:bg-slate-100 focus-visible:text-slate-600 focus-visible:outline-none"
+									aria-label="Close dialog"
+								>
+									<i className="fas fa-times" aria-hidden="true" />
+								</button>
+							</header>
+							<div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+								{analyticsModalPatientId ? (
+									<PatientProgressAnalytics 
+										patientId={analyticsModalPatientId} 
+										patientName={analyticsModalPatientName || undefined}
+									/>
+								) : (
+									<div className="flex items-center justify-center py-12">
+										<p className="text-sm text-slate-500">No patient selected</p>
+									</div>
+								)}
+							</div>
+						</div>
+					</div>
+				)}
+
 				{/* Booking Modal */}
 				<AppointmentBookingModal
 					isOpen={showBookingModal}
@@ -3794,17 +3858,15 @@ export default function EditReport() {
 			hydration: formData.hydration || '4',
 			nutrition: formData.nutrition || '',
 			chiefComplaint: formData.chiefComplaint || formData.complaints || '',
-			onsetType: formData.onsetType || '',
 			duration: formData.duration || '',
 			mechanismOfInjury: formData.mechanismOfInjury || '',
-			painType: formData.painType || formData.typeOfPain || '',
+			painType: formData.painType || '',
 			painIntensity: formData.painIntensity || formData.vasScale || '',
 			aggravatingFactor: formData.aggravatingFactor || '',
 			relievingFactor: formData.relievingFactor || '',
 			siteSide: formData.siteSide || '',
 			onset: formData.onset || '',
 			natureOfInjury: formData.natureOfInjury || '',
-			typeOfPain: formData.typeOfPain || '',
 			vasScale: formData.vasScale || '5',
 			rom: formData.rom || {},
 			mmt: formData.mmt || {},
@@ -3831,7 +3893,6 @@ export default function EditReport() {
 			currentFunctionalAbility: formData.currentFunctionalAbility || '',
 			complianceWithHEP: formData.complianceWithHEP || '',
 			specialTest: formData.specialTest || '',
-			differentialDiagnosis: formData.differentialDiagnosis || '',
 			finalDiagnosis: formData.finalDiagnosis || '',
 			shortTermGoals: formData.shortTermGoals || '',
 			longTermGoals: formData.longTermGoals || '',
@@ -3841,7 +3902,6 @@ export default function EditReport() {
 			nextFollowUpDate: formData.nextFollowUpDate || '',
 			nextFollowUpTime: formData.nextFollowUpTime || '',
 			physioName: formData.physioName || '',
-			physioRegNo: formData.physioId || '',
 			patientType: selectedPatient.patientType || '',
 		} as PatientReportData;
 	};
@@ -5585,7 +5645,8 @@ export default function EditReport() {
 			{/* Analytics Modal */}
 			{showAnalyticsModal && analyticsModalPatientId && (
 				<div 
-					className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 px-4 py-6"
+					className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm px-4 py-6"
+					style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
 					onClick={(e) => {
 						// Close modal when clicking outside
 						if (e.target === e.currentTarget) {
@@ -5594,11 +5655,17 @@ export default function EditReport() {
 							setAnalyticsModalPatientName(null);
 						}
 					}}
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="analytics-modal-title"
 				>
-					<div className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[90vh] flex flex-col">
-						<header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+					<div 
+						className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[90vh] flex flex-col"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 flex-shrink-0">
 							<div>
-								<h2 className="text-lg font-semibold text-slate-900">Progress Analytics</h2>
+								<h2 id="analytics-modal-title" className="text-lg font-semibold text-slate-900">Progress Analytics</h2>
 								<p className="text-xs text-slate-500">
 									{analyticsModalPatientName && `Analytics for ${analyticsModalPatientName}`}
 									{analyticsModalPatientId && ` (${analyticsModalPatientId})`}
@@ -5617,11 +5684,17 @@ export default function EditReport() {
 								<i className="fas fa-times" aria-hidden="true" />
 							</button>
 						</header>
-						<div className="flex-1 overflow-y-auto px-6 py-4">
-							<PatientProgressAnalytics 
-								patientId={analyticsModalPatientId} 
-								patientName={analyticsModalPatientName || undefined}
-							/>
+						<div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+							{analyticsModalPatientId ? (
+								<PatientProgressAnalytics 
+									patientId={analyticsModalPatientId} 
+									patientName={analyticsModalPatientName || undefined}
+								/>
+							) : (
+								<div className="flex items-center justify-center py-12">
+									<p className="text-sm text-slate-500">No patient selected</p>
+								</div>
+							)}
 						</div>
 					</div>
 				</div>

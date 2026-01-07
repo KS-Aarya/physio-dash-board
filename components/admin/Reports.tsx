@@ -750,7 +750,6 @@ export default function Reports() {
 			hydration: '4',
 			nutrition: '',
 			chiefComplaint: patient.complaint || '',
-			onsetType: '',
 			duration: '',
 			mechanismOfInjury: '',
 			painType: '',
@@ -760,7 +759,6 @@ export default function Reports() {
 			siteSide: '',
 			onset: '',
 			natureOfInjury: '',
-			typeOfPain: '',
 			vasScale: '5',
 			rom: {},
 			mmt: {},
@@ -781,7 +779,6 @@ export default function Reports() {
 			crepitus: '',
 			odema: '',
 			specialTest: '',
-			differentialDiagnosis: '',
 			finalDiagnosis: '',
 			shortTermGoals: '',
 			longTermGoals: '',
@@ -797,7 +794,6 @@ export default function Reports() {
 			currentFunctionalAbility: '',
 			complianceWithHEP: '',
 			physioName: '',
-			physioRegNo: '',
 			patientType: patient.patientType || '',
 		}, { forPrint: true });
 	};
@@ -825,7 +821,6 @@ export default function Reports() {
 			hydration: '4',
 			nutrition: '',
 			chiefComplaint: patient.complaint || '',
-			onsetType: '',
 			duration: '',
 			mechanismOfInjury: '',
 			painType: '',
@@ -835,7 +830,6 @@ export default function Reports() {
 			siteSide: '',
 			onset: '',
 			natureOfInjury: '',
-			typeOfPain: '',
 			vasScale: '5',
 			rom: {},
 			mmt: {},
@@ -856,7 +850,6 @@ export default function Reports() {
 			crepitus: '',
 			odema: '',
 			specialTest: '',
-			differentialDiagnosis: '',
 			finalDiagnosis: '',
 			shortTermGoals: '',
 			longTermGoals: '',
@@ -872,7 +865,6 @@ export default function Reports() {
 			currentFunctionalAbility: '',
 			complianceWithHEP: '',
 			physioName: '',
-			physioRegNo: '',
 			patientType: patient.patientType || '',
 		});
 	};
