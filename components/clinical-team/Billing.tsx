@@ -118,6 +118,11 @@ export default function Billing() {
 						const created = (data.createdAt as Timestamp | undefined)?.toDate?.();
 						const updated = (data.updatedAt as Timestamp | undefined)?.toDate?.();
 
+						// Read amount from amount field first, fallback to amountPaid if amount is missing
+						const amountValue = data.amount !== undefined && data.amount !== null 
+							? Number(data.amount) 
+							: (data.amountPaid !== undefined && data.amountPaid !== null ? Number(data.amountPaid) : 0);
+
 						return {
 							id: docSnap.id,
 							billingId: data.billingId ? String(data.billingId) : '',
@@ -125,7 +130,7 @@ export default function Billing() {
 							patient: data.patient ? String(data.patient) : '',
 							patientId: data.patientId ? String(data.patientId) : '',
 							doctor: data.doctor ? String(data.doctor) : undefined,
-							amount: data.amount ? Number(data.amount) : 0,
+							amount: amountValue,
 							date: data.date ? String(data.date) : '',
 							status: (data.status as 'Pending' | 'Completed' | 'Auto-Paid') || 'Pending',
 							paymentMode: data.paymentMode ? String(data.paymentMode) : undefined,
@@ -135,7 +140,23 @@ export default function Billing() {
 						} as BillingRecord;
 					})
 					.filter(bill => assignedPatientIds.has(bill.patientId));
-				setBilling([...mapped]);
+				// Sort by updatedAt desc (if available), then createdAt desc to show recently updated records first
+				const sorted = [...mapped].sort((a, b) => {
+					const getTimestamp = (value: string | Timestamp | undefined): number => {
+						if (!value) return 0;
+						if (value instanceof Date) return value.getTime();
+						if (typeof value === 'string') return new Date(value).getTime();
+						// Handle Firestore Timestamp
+						if (value && typeof value === 'object' && 'toDate' in value) {
+							return (value as Timestamp).toDate().getTime();
+						}
+						return 0;
+					};
+					const aUpdated = getTimestamp(a.updatedAt) || getTimestamp(a.createdAt);
+					const bUpdated = getTimestamp(b.updatedAt) || getTimestamp(b.createdAt);
+					return bUpdated - aUpdated;
+				});
+				setBilling(sorted);
 				setLoading(false);
 			},
 			error => {
@@ -536,12 +557,25 @@ export default function Billing() {
 										<p className="mt-1 text-sm text-slate-900">{selectedBill.billingId}</p>
 									</div>
 									<div>
-										<label className="block text-sm font-medium text-slate-700">Amount</label>
-										<p className="mt-1 text-lg font-semibold text-slate-900">
-											{typeof paymentAmount === 'string' && paymentAmount.toUpperCase() === 'N/A'
-												? 'N/A'
-												: `₹${(typeof paymentAmount === 'number' ? paymentAmount : parseFloat(String(paymentAmount)) || 0).toFixed(2)}`}
-										</p>
+										<label className="block text-sm font-medium text-slate-700">
+											Amount <span className="text-red-500">*</span>
+										</label>
+										{typeof paymentAmount === 'string' && paymentAmount.toUpperCase() === 'N/A' ? (
+											<p className="mt-1 text-lg font-semibold text-slate-900">N/A</p>
+										) : (
+											<input
+												type="number"
+												step="0.01"
+												min="0"
+												value={typeof paymentAmount === 'number' ? paymentAmount : parseFloat(String(paymentAmount)) || 0}
+												onChange={e => {
+													const value = parseFloat(e.target.value) || 0;
+													setPaymentAmount(value);
+												}}
+												className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+												placeholder="Enter amount"
+											/>
+										)}
 									</div>
 									<div>
 										<label className="block text-sm font-medium text-slate-700">

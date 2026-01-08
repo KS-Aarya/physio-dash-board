@@ -4232,10 +4232,12 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 									</div>
 									)}
 
-									{/* Strength & Conditioning */}
-									<div className="mb-8 border-t border-slate-200 pt-6">
+									{/* Strength & Conditioning - Only show when on strength-conditioning tab */}
+									{activeReportTab === 'strength-conditioning' && (
+										<>
+											<div className="mb-8 border-t border-slate-200 pt-6">
 										<h2 className="mb-4 text-lg font-semibold text-slate-900 border-b-2 border-slate-300 pb-2">
-											2. S & C (Strength & Conditioning)
+											Strength & Conditioning
 										</h2>
 										<div className="space-y-4">
 											<div>
@@ -4474,8 +4476,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										</div>
 									</div>
 
-									{/* Wellness Score */}
-									<div className="mb-8 border-t border-slate-200 pt-6">
+											{/* Wellness Score */}
+											<div className="mb-8 border-t border-slate-200 pt-6">
 										<h2 className="mb-4 text-lg font-semibold text-slate-900 border-b-2 border-slate-300 pb-2">
 											Wellness Score
 										</h2>
@@ -5254,6 +5256,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											</div>
 										</div>
 									</div>
+									)}
+										</>
 									)}
 
 									{/* Save Section with Session Completion Checkbox */}

@@ -16,9 +16,10 @@ import PerformanceRating from '@/components/clinical-team/PerformanceRating';
 import InventoryManagement from '@/components/InventoryManagement';
 import LeaveManagement from '@/components/LeaveManagement';
 import Billing from '@/components/clinical-team/Billing';
+import StrengthConditioningReport from '@/components/clinical-team/StrengthConditioningReport';
 import { useAuth } from '@/contexts/AuthContext';
 
-type ClinicalTeamPage = 'dashboard' | 'calendar' | 'edit-report' | 'availability' | 'transfer' | 'appointments' | 'notifications' | 'inventory' | 'leave' | 'profile' | 'my-performance' | 'performance-rating' | 'billing';
+type ClinicalTeamPage = 'dashboard' | 'calendar' | 'edit-report' | 'strength-conditioning-report' | 'availability' | 'transfer' | 'appointments' | 'notifications' | 'inventory' | 'leave' | 'profile' | 'my-performance' | 'performance-rating' | 'billing';
 
 const clinicalTeamLinks: SidebarLink[] = [
 	{ href: '#dashboard', label: 'Dashboard', icon: 'fas fa-dumbbell' },
@@ -29,6 +30,7 @@ const clinicalTeamLinks: SidebarLink[] = [
 	{ href: '#inventory', label: 'Inventory Management', icon: 'fas fa-boxes' },
 	{ href: '#leave', label: 'Leave Management', icon: 'fas fa-calendar-times' },
 	{ href: '#edit-report', label: 'View/Edit Reports', icon: 'fas fa-notes-medical' },
+	{ href: '#strength-conditioning-report', label: 'Strength & Conditioning', icon: 'fas fa-dumbbell' },
 	{ href: '#availability', label: 'My Availability', icon: 'fas fa-calendar-check' },
 	{ href: '#transfer', label: 'Transfer Management', icon: 'fas fa-exchange-alt' },
 	{ href: '#my-performance', label: 'My Performance', icon: 'fas fa-chart-line' },
@@ -79,7 +81,9 @@ export default function ClinicalTeamLayout({ children }: { children: React.React
 			return;
 		}
 
-		if (pathname?.includes('/edit-report')) {
+		if (pathname?.includes('/strength-conditioning-report')) {
+			setActivePage('strength-conditioning-report');
+		} else if (pathname?.includes('/edit-report')) {
 			setActivePage('edit-report');
 		} else if (pathname?.includes('/calendar')) {
 			setActivePage('calendar');
@@ -155,6 +159,8 @@ export default function ClinicalTeamLayout({ children }: { children: React.React
 			return <LeaveManagement />;
 		case 'edit-report':
 			return <EditReport />;
+		case 'strength-conditioning-report':
+			return <StrengthConditioningReport />;
 			case 'availability':
 				return <Availability />;
 			case 'transfer':
