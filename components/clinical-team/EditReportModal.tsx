@@ -11,6 +11,7 @@ import { recordSessionUsageForAppointment } from '@/lib/sessionAllowanceClient';
 import { createDYESBilling } from '@/lib/dyesBilling';
 import { getHeaderConfig, getDefaultHeaderConfig } from '@/lib/headerConfig';
 import type { HeaderConfig } from '@/components/admin/HeaderManagement';
+import ExerciseLibrarySelector from '@/components/clinical-team/ExerciseLibrarySelector';
 
 // Constants
 const VAS_EMOJIS = ['😀','😁','🙂','😊','😌','😟','😣','😢','😭','😱'];
@@ -2859,13 +2860,23 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 
 										{/* Treatment */}
 										<div className="mb-8">
-											<h3 className="mb-4 text-sm font-semibold text-sky-600">Treatment</h3>
+											<div className="flex items-center justify-between mb-2">
+												<h3 className="text-sm font-semibold text-sky-600">Treatment</h3>
+												<ExerciseLibrarySelector
+													onSelectExercises={(exercises) => {
+														const currentValue = formData.treatmentProvided || '';
+														handleFieldChange('treatmentProvided', currentValue ? `${currentValue}\n\n${exercises}` : exercises);
+													}}
+													currentValue={formData.treatmentProvided}
+													mode="treatment-provided"
+												/>
+											</div>
 											<textarea
 												value={formData.treatmentProvided || ''}
 												onChange={e => handleFieldChange('treatmentProvided', e.target.value)}
 												className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-												rows={5}
-												placeholder="Enter treatment provided..."
+												rows={6}
+												placeholder="Enter treatment provided or use Exercise Library to select exercises..."
 											/>
 										</div>
 									</div>
@@ -3605,12 +3616,23 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										/>
 									</div>
 									<div>
-										<label className="block text-xs font-medium text-slate-500">iii) Treatment</label>
+										<div className="flex items-center justify-between mb-2">
+											<label className="block text-xs font-medium text-slate-500">iii) Treatment</label>
+											<ExerciseLibrarySelector
+												onSelectExercises={(exercises) => {
+													const currentValue = formData.treatment || '';
+													handleFieldChange('treatment', currentValue ? `${currentValue}\n\n${exercises}` : exercises);
+												}}
+												currentValue={formData.treatment}
+												mode="rehab-protocol"
+											/>
+										</div>
 										<textarea
 											value={formData.treatment || formData.treatmentProvided || ''}
 											onChange={e => handleFieldChange('treatment', e.target.value)}
 											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
+											rows={6}
+											placeholder="Enter treatment or use Exercise Library to select exercises..."
 										/>
 									</div>
 									<div>
@@ -4135,10 +4157,12 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 									</div>
 									)}
 
-									{/* Strength & Conditioning */}
-									<div className="mb-8 border-t border-slate-200 pt-6">
+									{/* Strength & Conditioning - Only show when on strength-conditioning tab */}
+									{activeReportTab === 'strength-conditioning' && (
+										<>
+											<div className="mb-8 border-t border-slate-200 pt-6">
 										<h2 className="mb-4 text-lg font-semibold text-slate-900 border-b-2 border-slate-300 pb-2">
-											2. S & C (Strength & Conditioning)
+											Strength & Conditioning
 										</h2>
 										<div className="space-y-4">
 											<div>
@@ -4377,8 +4401,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										</div>
 									</div>
 
-									{/* Wellness Score */}
-									<div className="mb-8 border-t border-slate-200 pt-6">
+											{/* Wellness Score */}
+											<div className="mb-8 border-t border-slate-200 pt-6">
 										<h2 className="mb-4 text-lg font-semibold text-slate-900 border-b-2 border-slate-300 pb-2">
 											Wellness Score
 										</h2>
@@ -5157,6 +5181,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											</div>
 										</div>
 									</div>
+									)}
+										</>
 									)}
 
 									{/* Save Section with Session Completion Checkbox */}

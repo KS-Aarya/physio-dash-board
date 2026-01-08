@@ -1074,9 +1074,10 @@ export default function Patients() {
 			
 				await updateDoc(billingRef, {
 					status: 'Completed',
+					amount: selectedPaymentBill.amount,
 					paymentMode,
 					utr: paymentMode === 'UPI/Card' ? utr.trim() : null,
-				amountPaid: selectedPaymentBill.amount,
+					amountPaid: selectedPaymentBill.amount,
 					updatedAt: serverTimestamp(),
 				});
 				alert('Payment processed successfully!');
