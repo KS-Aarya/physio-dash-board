@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -146,13 +145,10 @@ export default function LoginPage() {
 				<div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16 text-white">
 					{/* Large Logo - Left Center */}
 					<div className="mb-10">
-						<Image
-							src="/CenterSportsScience_logo.jpg"
+						<img
+							src="/favicon.ico"
 							alt="Center for Sports Science logo"
-							width={220}
-							height={220}
 							className="h-52 w-52 object-contain drop-shadow-2xl"
-							priority
 						/>
 					</div>
 
@@ -288,7 +284,7 @@ export default function LoginPage() {
 
 			{/* Copyright Notice - Bottom Left */}
 			<div className="absolute bottom-4 left-4 lg:left-8 text-white text-sm">
-				<p>© 2025 Centre for Sports Science. All rights reserved.</p>
+				<p>© 2026 Centre for Sports Science. All rights reserved.</p>
 			</div>
 		</div>
 	);
