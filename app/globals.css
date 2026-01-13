@@ -43,8 +43,10 @@ body.modal-open {
   height: 100%;
 }
 
-/* Prevent scroll chaining - only for modals, not main page */
-/* Don't prevent scrolling on html/body for regular pages */
+/* Prevent scroll chaining - critical for modal scrolling */
+html {
+  overscroll-behavior-y: none;
+}
 
 /* Ensure modal backdrop prevents background scroll */
 .fixed[class*="inset-0"][class*="z-50"],
@@ -176,8 +178,7 @@ body.modal-open {
 
 /* Fix for containers that get cut off when zoomed in */
 /* CRITICAL: Ensure flex containers with max-height allow scrolling */
-/* ONLY apply to modals, not regular page content */
-.fixed[class*="inset-0"] .flex.flex-col[class*="max-h-"] {
+.flex.flex-col[class*="max-h-"] {
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
@@ -200,22 +201,20 @@ body.modal-open {
 }
 
 /* CRITICAL: Override overflow-hidden on modals with max-height - MUST allow scrolling */
-/* ONLY apply to modals inside fixed overlays */
-.fixed[class*="inset-0"] [class*="overflow-hidden"][class*="max-h-\[90vh\]"],
-.fixed[class*="inset-0"] [class*="overflow-hidden"][class*="max-h-\[85vh\]"],
-.fixed[class*="inset-0"] [class*="overflow-hidden"][class*="max-h-\[95vh\]"],
-.fixed[class*="inset-0"] [class*="overflow-hidden"][class*="max-h-\[70vh\]"],
-.fixed[class*="inset-0"] [class*="overflow-hidden"][class*="max-h-"] {
+[class*="overflow-hidden"][class*="max-h-\[90vh\]"],
+[class*="overflow-hidden"][class*="max-h-\[85vh\]"],
+[class*="overflow-hidden"][class*="max-h-\[95vh\]"],
+[class*="overflow-hidden"][class*="max-h-\[70vh\]"],
+[class*="overflow-hidden"][class*="max-h-"] {
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
 
 /* Ensure modal/dialog containers with viewport heights are scrollable when zoomed */
-/* ONLY apply to modals inside fixed overlays, not regular page content */
-.fixed[class*="inset-0"] [class*="max-h-\[90vh\]"],
-.fixed[class*="inset-0"] [class*="max-h-\[85vh\]"],
-.fixed[class*="inset-0"] [class*="max-h-\[95vh\]"],
-.fixed[class*="inset-0"] [class*="max-h-\[70vh\]"] {
+[class*="max-h-\[90vh\]"],
+[class*="max-h-\[85vh\]"],
+[class*="max-h-\[95vh\]"],
+[class*="max-h-\[70vh\]"] {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   display: flex !important;
@@ -268,36 +267,20 @@ body.modal-open {
 }
 
 /* Prevent scroll chaining from modal content to background */
-/* ONLY apply to modals */
-.fixed[class*="inset-0"] [class*="max-h-\[90vh\]"] [class*="overflow-y-auto"],
-.fixed[class*="inset-0"] [class*="max-h-\[85vh\]"] [class*="overflow-y-auto"],
-.fixed[class*="inset-0"] [class*="max-h-\[95vh\]"] [class*="overflow-y-auto"] {
+[class*="max-h-\[90vh\]"] [class*="overflow-y-auto"],
+[class*="max-h-\[85vh\]"] [class*="overflow-y-auto"],
+[class*="max-h-\[95vh\]"] [class*="overflow-y-auto"] {
   overscroll-behavior: contain !important;
   touch-action: pan-y !important;
 }
 
-/* Ensure all modal content areas are scrollable - ONLY for modals */
-.fixed[class*="inset-0"] [class*="max-h-\[90vh\"]"] [class*="flex-1"],
-.fixed[class*="inset-0"] [class*="max-h-\[85vh\"]"] [class*="flex-1"],
-.fixed[class*="inset-0"] [class*="max-h-\[95vh\"]"] [class*="flex-1"] {
+/* Ensure all modal content areas are scrollable */
+[class*="max-h-\[90vh\"]"] [class*="flex-1"],
+[class*="max-h-\[85vh\"]"] [class*="flex-1"],
+[class*="max-h-\[95vh\"]"] [class*="flex-1"] {
   min-height: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
-}
-
-/* Ensure main page content can scroll normally - override any accidental restrictions */
-main,
-[role="main"],
-.min-h-svh:not(.fixed) {
-  overflow-y: visible !important;
-  overflow-x: visible !important;
-}
-
-/* Ensure page containers are scrollable */
-.bg-purple-50,
-.bg-slate-50,
-.min-h-svh:not(.fixed) {
-  overflow-y: visible !important;
 }
 
 /* Custom utility classes */
