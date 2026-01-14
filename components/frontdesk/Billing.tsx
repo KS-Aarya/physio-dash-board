@@ -47,6 +47,10 @@ interface BillingRecord {
 	// Invoice-related fields (may or may not exist in Firestore)
 	invoiceNo?: string;
 	invoiceGeneratedAt?: string;
+
+	// Package-related fields
+	packageAmount?: number;
+	packageSessions?: number;
 }
 
 function getCurrentMonthYear() {
@@ -1170,6 +1174,8 @@ export default function Billing() {
 						updatedAt: updated ? updated.toISOString() : undefined,
 						invoiceNo: data.invoiceNo ? String(data.invoiceNo) : undefined,
 						invoiceGeneratedAt: data.invoiceGeneratedAt ? String(data.invoiceGeneratedAt) : undefined,
+						packageAmount: data.packageAmount ? Number(data.packageAmount) : undefined,
+						packageSessions: data.packageSessions ? Number(data.packageSessions) : undefined,
 					} as BillingRecord;
 				});
 				setBilling([...mapped]);
@@ -1496,7 +1502,99 @@ export default function Billing() {
 			.reduce((sum, bill) => sum + (bill.amount || 0), 0);
 	}, [filteredBilling]);
 
-	const pending = useMemo(() => filteredBilling.filter(b => b.status === 'Pending'), [filteredBilling]);
+	// Create a lookup map for patients with packages
+	const patientsWithPackages = useMemo(() => {
+		const packageMap = new Map<string, boolean>();
+		patients.forEach(patient => {
+			const hasPackage = (typeof patient.packageAmount === 'number' && patient.packageAmount > 0) ||
+				(typeof patient.totalSessionsRequired === 'number' && patient.totalSessionsRequired > 0);
+			if (hasPackage) {
+				packageMap.set(patient.patientId, true);
+			}
+		});
+		return packageMap;
+	}, [patients]);
+
+	// Create a set of patient IDs that have package billing records
+	const patientsWithPackageBills = useMemo(() => {
+		const packageBillPatients = new Set<string>();
+		billing.forEach(bill => {
+			// Check if this is a package bill (has packageAmount > 0 or billingId starts with PKG-)
+			const isPackageBill = (bill.packageAmount && bill.packageAmount > 0) || 
+				(bill.billingId && bill.billingId.startsWith('PKG-'));
+			if (isPackageBill) {
+				packageBillPatients.add(bill.patientId);
+			}
+		});
+		return packageBillPatients;
+	}, [billing]);
+
+	const pending = useMemo(() => {
+		return filteredBilling.filter(bill => {
+			// Only include bills with status 'Pending'
+			if (bill.status !== 'Pending') return false;
+
+			// If this is a package bill itself (has packageAmount > 0 or billingId starts with PKG-), include it
+			const isPackageBill = (bill.packageAmount && bill.packageAmount > 0) || 
+				(bill.billingId && bill.billingId.startsWith('PKG-'));
+			if (isPackageBill) {
+				return true; // Package bills should show in pending payments
+			}
+
+			// For individual session bills, exclude if patient has a package
+			const patientHasPackage = patientsWithPackages.has(bill.patientId) || 
+				patientsWithPackageBills.has(bill.patientId);
+			
+			// Exclude individual session bills for package patients
+			return !patientHasPackage;
+		});
+	}, [filteredBilling, patientsWithPackages, patientsWithPackageBills]);
+
+	// Calculate today's statistics
+	const todayStats = useMemo(() => {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const todayStr = today.toISOString().split('T')[0];
+
+		// Count patients registered today (based on registeredAt date)
+		const patientsRegisteredToday = patients.filter(patient => {
+			if (!patient.registeredAt) return false;
+			
+			let registrationDate: Date | null = null;
+			if (typeof patient.registeredAt === 'string') {
+				registrationDate = new Date(patient.registeredAt);
+			} else if (patient.registeredAt instanceof Date) {
+				registrationDate = patient.registeredAt;
+			}
+			
+			if (!registrationDate || isNaN(registrationDate.getTime())) return false;
+			
+			registrationDate.setHours(0, 0, 0, 0);
+			const registrationDateStr = registrationDate.toISOString().split('T')[0];
+			return registrationDateStr === todayStr;
+		});
+
+		// Calculate total collection today (based on billing date field where status is Completed or Auto-Paid)
+		const totalCollectionToday = billing
+			.filter(bill => {
+				if (bill.status !== 'Completed' && bill.status !== 'Auto-Paid') return false;
+				if (!bill.date) return false;
+				
+				// Parse the date string - could be YYYY-MM-DD, DD-MM-YYYY, or DD/MM/YYYY
+				const parsedDate = parseDateString(bill.date);
+				if (!parsedDate) return false;
+				
+				parsedDate.setHours(0, 0, 0, 0);
+				const billDateStr = parsedDate.toISOString().split('T')[0];
+				return billDateStr === todayStr;
+			})
+			.reduce((sum, bill) => sum + (bill.amount || 0), 0);
+
+		return {
+			patientsRegisteredToday: patientsRegisteredToday.length,
+			totalCollectionToday,
+		};
+	}, [patients, billing]);
 	const filteredPending = useMemo(() => {
 		if (!pendingSearchQuery.trim()) return pending;
 		const query = pendingSearchQuery.toLowerCase().trim();
@@ -1974,6 +2072,30 @@ export default function Billing() {
 			(snapshot: QuerySnapshot) => {
 				const mapped = snapshot.docs.map(docSnap => {
 					const data = docSnap.data();
+					// Handle registeredAt - can be Timestamp, string, or undefined
+					let registeredAt: string | undefined = undefined;
+					const registeredAtValue = data.registeredAt;
+					if (registeredAtValue) {
+						if (registeredAtValue instanceof Date) {
+							registeredAt = registeredAtValue.toISOString();
+						} else if (typeof registeredAtValue === 'string') {
+							registeredAt = registeredAtValue;
+						} else if (registeredAtValue && typeof registeredAtValue === 'object' && 'toDate' in registeredAtValue) {
+							// Firestore Timestamp
+							const timestamp = registeredAtValue as Timestamp;
+							const date = timestamp.toDate?.();
+							if (date && !isNaN(date.getTime())) {
+								registeredAt = date.toISOString();
+							}
+						} else if (registeredAtValue && typeof registeredAtValue === 'object' && 'seconds' in registeredAtValue) {
+							// Firestore Timestamp with seconds property
+							const timestamp = registeredAtValue as { seconds: number; nanoseconds?: number };
+							const date = new Date(timestamp.seconds * 1000);
+							if (!isNaN(date.getTime())) {
+								registeredAt = date.toISOString();
+							}
+						}
+					}
 					return {
 						id: docSnap.id,
 						patientId: data.patientId ? String(data.patientId) : '',
@@ -1989,6 +2111,9 @@ export default function Billing() {
 						treatmentProvided: data.treatmentProvided ? String(data.treatmentProvided) : '',
 						progressNotes: data.progressNotes ? String(data.progressNotes) : '',
 						patientType: data.patientType ? String(data.patientType) : '',
+						packageAmount: data.packageAmount ? Number(data.packageAmount) : undefined,
+						totalSessionsRequired: data.totalSessionsRequired ? Number(data.totalSessionsRequired) : undefined,
+						registeredAt,
 					};
 				});
 				setPatients([...mapped]);
@@ -2496,6 +2621,25 @@ export default function Billing() {
 				/>
 
 				<div className="border-t border-slate-200" />
+
+				{/* Today's Statistics */}
+				<section className="rounded-2xl bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.07)]">
+					<h3 className="mb-4 text-lg font-semibold text-slate-900">Today's Statistics</h3>
+					<div className="grid gap-4 sm:grid-cols-2">
+						<div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+							<div className="text-sm font-medium text-blue-700">PATIENTS REGISTERED TODAY</div>
+							<div className="mt-2 text-2xl font-bold text-blue-900">{todayStats.patientsRegisteredToday}</div>
+							<div className="mt-1 text-xs text-blue-600">Based on registration date</div>
+						</div>
+						<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+							<div className="text-sm font-medium text-emerald-700">TOTAL COLLECTION TODAY</div>
+							<div className="mt-2 text-2xl font-bold text-emerald-900">
+								Rs. {todayStats.totalCollectionToday.toFixed(2)}
+							</div>
+							<div className="mt-1 text-xs text-emerald-600">Based on payment date</div>
+						</div>
+					</div>
+				</section>
 
 				{/* Billing Cycle Management */}
 				<section className="rounded-2xl bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.07)]">

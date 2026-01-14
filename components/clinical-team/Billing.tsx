@@ -34,6 +34,8 @@ interface BillingRecord {
 	updatedAt?: string | Timestamp;
 	isExtraTreatment?: boolean;
 	dyesSessionNumber?: number;
+	packageAmount?: number;
+	packageSessions?: number;
 }
 
 interface PatientRecord {
@@ -88,7 +90,9 @@ export default function Billing() {
 							name: data.name ? String(data.name) : '',
 							assignedDoctor: data.assignedDoctor ? String(data.assignedDoctor) : undefined,
 							patientType: data.patientType ? String(data.patientType) : undefined,
-						} as PatientRecord;
+							packageAmount: data.packageAmount ? Number(data.packageAmount) : undefined,
+							totalSessionsRequired: data.totalSessionsRequired ? Number(data.totalSessionsRequired) : undefined,
+						} as PatientRecord & { packageAmount?: number; totalSessionsRequired?: number };
 					})
 					.filter(patient => normalize(patient.assignedDoctor) === clinicianName);
 				setPatients([...mapped]);
@@ -141,6 +145,8 @@ export default function Billing() {
 							updatedAt: updated ? updated.toISOString() : undefined,
 							isExtraTreatment: data.isExtraTreatment === true,
 							dyesSessionNumber: typeof data.dyesSessionNumber === 'number' ? data.dyesSessionNumber : undefined,
+							packageAmount: data.packageAmount ? Number(data.packageAmount) : undefined,
+							packageSessions: data.packageSessions ? Number(data.packageSessions) : undefined,
 						} as BillingRecord;
 					})
 					.filter(bill => assignedPatientIds.has(bill.patientId));
@@ -183,7 +189,53 @@ export default function Billing() {
 		});
 	}, [billing, filterRange]);
 
-	const pending = useMemo(() => filteredBilling.filter(b => b.status === 'Pending'), [filteredBilling]);
+	// Create a lookup map for patients with packages
+	const patientsWithPackages = useMemo(() => {
+		const packageMap = new Map<string, boolean>();
+		patients.forEach(patient => {
+			const hasPackage = (typeof (patient as any).packageAmount === 'number' && (patient as any).packageAmount > 0) ||
+				(typeof (patient as any).totalSessionsRequired === 'number' && (patient as any).totalSessionsRequired > 0);
+			if (hasPackage) {
+				packageMap.set(patient.patientId, true);
+			}
+		});
+		return packageMap;
+	}, [patients]);
+
+	// Create a set of patient IDs that have package billing records
+	const patientsWithPackageBills = useMemo(() => {
+		const packageBillPatients = new Set<string>();
+		billing.forEach(bill => {
+			// Check if this is a package bill (has packageAmount > 0 or billingId starts with PKG-)
+			const isPackageBill = (bill.packageAmount && bill.packageAmount > 0) || 
+				(bill.billingId && bill.billingId.startsWith('PKG-'));
+			if (isPackageBill) {
+				packageBillPatients.add(bill.patientId);
+			}
+		});
+		return packageBillPatients;
+	}, [billing]);
+
+	const pending = useMemo(() => {
+		return filteredBilling.filter(bill => {
+			// Only include bills with status 'Pending'
+			if (bill.status !== 'Pending') return false;
+
+			// If this is a package bill itself (has packageAmount > 0 or billingId starts with PKG-), include it
+			const isPackageBill = (bill.packageAmount && bill.packageAmount > 0) || 
+				(bill.billingId && bill.billingId.startsWith('PKG-'));
+			if (isPackageBill) {
+				return true; // Package bills should show in pending payments
+			}
+
+			// For individual session bills, exclude if patient has a package
+			const patientHasPackage = patientsWithPackages.has(bill.patientId) || 
+				patientsWithPackageBills.has(bill.patientId);
+			
+			// Exclude individual session bills for package patients
+			return !patientHasPackage;
+		});
+	}, [filteredBilling, patientsWithPackages, patientsWithPackageBills]);
 	const filteredPending = useMemo(() => {
 		if (!pendingSearchQuery.trim()) return pending;
 		const query = pendingSearchQuery.toLowerCase().trim();

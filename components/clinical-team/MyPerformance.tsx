@@ -67,7 +67,12 @@ interface SessionTransferRecord {
 	reason?: string;
 }
 
-type TimePeriod = 'day' | 'week' | 'month' | 'custom';
+type TimePeriod = 'day' | 'week' | 'month' | 'custom' | 'overall';
+
+// Normalize function for case-insensitive string comparison
+function normalize(value?: string | null): string {
+	return (value || '').toLowerCase().trim();
+}
 
 export default function MyPerformance() {
 	const { user } = useAuth();
@@ -356,7 +361,16 @@ export default function MyPerformance() {
 		let endDate: Date = now;
 
 		// Filter patients (always show all assigned patients)
-		const filteredPatients = patients.filter(pat => pat.assignedDoctor === staffName);
+		// Use normalize for case-insensitive matching
+		// Match against both staffName (userName from staff collection) and user.displayName
+		// as assignedDoctor might be set to either value
+		const normalizedStaffName = normalize(staffName);
+		const normalizedDisplayName = normalize(user?.displayName || '');
+		const filteredPatients = patients.filter(pat => {
+			const normalizedAssignedDoctor = normalize(pat.assignedDoctor);
+			return normalizedAssignedDoctor === normalizedStaffName || 
+				   (normalizedDisplayName && normalizedAssignedDoctor === normalizedDisplayName);
+		});
 
 		switch (selectedPeriod) {
 			case 'day':
@@ -382,11 +396,16 @@ export default function MyPerformance() {
 					return { appointments: [], activities: [], billing: [], patients: filteredPatients, transfers: [], sessionTransfers: [] };
 				}
 				break;
+			case 'overall':
+				// For overall, set a very early start date to include all records
+				startDate = new Date(2000, 0, 1);
+				endDate = now;
+				break;
 		}
 
 		// Filter appointments
 		const filteredAppointments = appointments.filter(apt => {
-			if (apt.doctor !== staffName) return false;
+			if (normalize(apt.doctor) !== normalizedStaffName) return false;
 			if (!apt.date) return false;
 			const aptDate = new Date(apt.date);
 			return aptDate >= startDate && aptDate <= endDate;
@@ -402,7 +421,7 @@ export default function MyPerformance() {
 
 		// Filter billing
 		const filteredBilling = billing.filter(bill => {
-			if (bill.doctor !== staffName) return false;
+			if (normalize(bill.doctor) !== normalizedStaffName) return false;
 			if (!bill.date) return false;
 			const billDate = new Date(bill.date);
 			return billDate >= startDate && billDate <= endDate;
@@ -410,7 +429,7 @@ export default function MyPerformance() {
 
 		// Filter transfers (where current user is the fromTherapist or toTherapist)
 		const filteredTransfers = transfers.filter(transfer => {
-			if (transfer.fromTherapist !== staffName && transfer.toTherapist !== staffName) return false;
+			if (normalize(transfer.fromTherapist) !== normalizedStaffName && normalize(transfer.toTherapist) !== normalizedStaffName) return false;
 			if (!transfer.transferredAt) return false;
 			const transferDate = transfer.transferredAt instanceof Timestamp 
 				? transfer.transferredAt.toDate() 
@@ -420,7 +439,7 @@ export default function MyPerformance() {
 
 		// Filter session transfers
 		const filteredSessionTransfers = sessionTransfers.filter(st => {
-			if (st.fromTherapist !== staffName && st.toTherapist !== staffName) return false;
+			if (normalize(st.fromTherapist) !== normalizedStaffName && normalize(st.toTherapist) !== normalizedStaffName) return false;
 			if (!st.transferredAt) return false;
 			const stDate = st.transferredAt instanceof Timestamp 
 				? st.transferredAt.toDate() 
@@ -446,25 +465,88 @@ export default function MyPerformance() {
 		const uniquePatientIds = new Set(apts.map(apt => apt.patientId).filter(Boolean));
 		const patientsAttended = uniquePatientIds.size;
 
-		// Patients by type (from appointments)
-		const patientIdsFromAppointments = Array.from(uniquePatientIds);
+		// Patients by type
+		// For "Overall" period, count unique patients from ALL appointments (not just filtered period)
+		// For other periods, count only patients with appointments in the filtered period
 		const patientsByType = {
 			DYES: 0,
 			VIP: 0,
 			GETHNA: 0,
 			PAID: 0,
+			OTHERS: 0,
 		};
 
-		patientIdsFromAppointments.forEach(pid => {
-			const patient = pats.find(p => p.patientId === pid);
-			if (patient) {
-				const type = (patient.patientType || '').toUpperCase();
-				if (type === 'DYES') patientsByType.DYES++;
-				else if (type === 'VIP') patientsByType.VIP++;
-				else if (type === 'GETHNA') patientsByType.GETHNA++;
-				else if (type === 'PAID') patientsByType.PAID++;
-			}
+		// Get all patients assigned to this clinician (from state, not filteredData)
+		// Use normalize for case-insensitive matching like other components
+		// Match against both staffName (userName from staff collection) and user.displayName
+		// as assignedDoctor might be set to either value
+		const normalizedStaffName = normalize(staffName);
+		const normalizedDisplayName = normalize(user?.displayName || '');
+		const allAssignedPatients = patients.filter(patient => {
+			const normalizedAssignedDoctor = normalize(patient.assignedDoctor);
+			return normalizedAssignedDoctor === normalizedStaffName || 
+				   (normalizedDisplayName && normalizedAssignedDoctor === normalizedDisplayName);
 		});
+
+		if (selectedPeriod === 'overall') {
+			// For overall, get ALL appointments for this clinician (not filtered by date)
+			// Then count unique patients by type from those appointments
+			const allAppointmentsForClinician = appointments.filter(apt => {
+				const normalizedDoctor = normalize(apt.doctor);
+				return normalizedDoctor === normalizedStaffName || 
+					   (normalizedDisplayName && normalizedDoctor === normalizedDisplayName);
+			});
+			const allUniquePatientIds = new Set(allAppointmentsForClinician.map(apt => apt.patientId).filter(Boolean));
+			
+			// Count patients by type from all appointments
+			allUniquePatientIds.forEach(pid => {
+				// First try to find in assigned patients, then in full patients array
+				let patient = allAssignedPatients.find(p => p.patientId === pid);
+				if (!patient) {
+					patient = patients.find(p => p.patientId === pid);
+				}
+				
+				if (patient) {
+					const type = (patient.patientType || '').toUpperCase().trim();
+					if (type === 'DYES') {
+						patientsByType.DYES++;
+					} else if (type === 'VIP') {
+						patientsByType.VIP++;
+					} else if (type === 'GETHNA') {
+						patientsByType.GETHNA++;
+					} else if (type === 'PAID') {
+						patientsByType.PAID++;
+					} else if (type === 'OTHERS' || type === 'OTHER' || type === 'REFERRAL') {
+						patientsByType.OTHERS++;
+					} else if (type !== '') {
+						patientsByType.OTHERS++;
+					}
+				}
+			});
+		} else {
+			// For other periods, count only patients who have appointments in the filtered period
+			const patientIdsFromAppointments = Array.from(uniquePatientIds);
+			patientIdsFromAppointments.forEach(pid => {
+				const patient = allAssignedPatients.find(p => p.patientId === pid);
+				if (patient) {
+					const type = (patient.patientType || '').toUpperCase().trim();
+					if (type === 'DYES') {
+						patientsByType.DYES++;
+					} else if (type === 'VIP') {
+						patientsByType.VIP++;
+					} else if (type === 'GETHNA') {
+						patientsByType.GETHNA++;
+					} else if (type === 'PAID') {
+						patientsByType.PAID++;
+					} else if (type === 'OTHERS' || type === 'OTHER' || type === 'REFERRAL') {
+						patientsByType.OTHERS++;
+					} else if (type !== '') {
+						// Count any other non-empty patient types as OTHERS
+						patientsByType.OTHERS++;
+					}
+				}
+			});
+		}
 
 		// Appointments count and hours
 		const appointmentCount = apts.length;
@@ -590,7 +672,7 @@ export default function MyPerformance() {
 			appointmentsByDepartment,
 			appointmentHoursByDepartment,
 		};
-	}, [filteredData, staffName, patients]);
+	}, [filteredData, staffName, patients, selectedPeriod, user, appointments]);
 
 	if (loading) {
 		return (
@@ -618,6 +700,8 @@ export default function MyPerformance() {
 							<p className="text-sm font-semibold text-slate-900">
 								{selectedPeriod === 'custom' && fromDate && toDate
 									? `${new Date(fromDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} - ${new Date(toDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+									: selectedPeriod === 'overall'
+									? 'Overall'
 									: selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)}
 							</p>
 						</div>
@@ -628,7 +712,7 @@ export default function MyPerformance() {
 			{/* Time Period Selector */}
 			<div className="mb-6 space-y-4">
 				<div className="flex gap-2">
-					{(['day', 'week', 'month', 'custom'] as TimePeriod[]).map(period => (
+					{(['day', 'week', 'month', 'custom', 'overall'] as TimePeriod[]).map(period => (
 						<button
 							key={period}
 							onClick={() => {
@@ -644,7 +728,7 @@ export default function MyPerformance() {
 									: 'bg-white text-slate-700 hover:bg-slate-50'
 							}`}
 						>
-							{period === 'day' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'Custom Range'}
+							{period === 'day' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : period === 'custom' ? 'Custom Range' : 'Overall'}
 						</button>
 					))}
 				</div>
@@ -801,7 +885,7 @@ export default function MyPerformance() {
 			{/* Patients by Type */}
 			<div className="mb-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
 				<h3 className="mb-4 text-lg font-semibold text-slate-900">Patients by Type</h3>
-				<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+				<div className="grid grid-cols-2 gap-4 md:grid-cols-5">
 					<div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
 						<p className="text-xs font-medium text-slate-500">DYES</p>
 						<p className="mt-1 text-xl font-bold text-slate-900">{analytics.patientsByType.DYES}</p>
@@ -817,6 +901,10 @@ export default function MyPerformance() {
 					<div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
 						<p className="text-xs font-medium text-slate-500">PAID</p>
 						<p className="mt-1 text-xl font-bold text-slate-900">{analytics.patientsByType.PAID}</p>
+					</div>
+					<div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+						<p className="text-xs font-medium text-slate-500">OTHERS</p>
+						<p className="mt-1 text-xl font-bold text-slate-900">{analytics.patientsByType.OTHERS}</p>
 					</div>
 				</div>
 			</div>

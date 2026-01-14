@@ -379,6 +379,46 @@ function formatDateLabel(value: string) {
 	return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
 }
 
+// Helper function to format date in various searchable formats
+function getDateSearchStrings(dateStr: string): string[] {
+	if (!dateStr) return [];
+	const date = new Date(dateStr);
+	if (isNaN(date.getTime())) return [];
+	
+	const searchStrings: string[] = [];
+	
+	// Format: "Jan 8, 2026"
+	searchStrings.push(formatDateLabel(dateStr).toLowerCase());
+	
+	// Format: "2026-01-08" (ISO date)
+	searchStrings.push(date.toISOString().split('T')[0].toLowerCase());
+	
+	// Format: "01/08/2026" (MM/DD/YYYY)
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	const year = date.getFullYear();
+	searchStrings.push(`${month}/${day}/${year}`.toLowerCase());
+	searchStrings.push(`${day}/${month}/${year}`.toLowerCase()); // DD/MM/YYYY
+	
+	// Format: "8 Jan 2026" (D MMM YYYY)
+	searchStrings.push(new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' }).format(date).toLowerCase());
+	
+	// Format: "January 8, 2026" (full month name)
+	searchStrings.push(new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date).toLowerCase());
+	
+	// Format: "2026" (year only)
+	searchStrings.push(String(year).toLowerCase());
+	
+	// Format: "Jan" or "January" (month only)
+	searchStrings.push(new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date).toLowerCase());
+	searchStrings.push(new Intl.DateTimeFormat('en-US', { month: 'long' }).format(date).toLowerCase());
+	
+	// Format: "8" (day only)
+	searchStrings.push(String(date.getDate()).toLowerCase());
+	
+	return searchStrings;
+}
+
 function timeStringToMinutes(time: string) {
 	const [hours, minutes] = time.split(':').map(Number);
 	if (Number.isNaN(hours) || Number.isNaN(minutes)) return 0;
@@ -702,12 +742,15 @@ export default function Patients() {
 			if (showDeletedPatients && !isDeleted) return false;
 			if (!showDeletedPatients && isDeleted) return false;
 
+			const dateSearchStrings = patient.registeredAt ? getDateSearchStrings(patient.registeredAt) : [];
+			
 			const matchesSearch =
 				!query ||
 				(patient.name || '').toLowerCase().includes(query) ||
 				(patient.patientId || '').toLowerCase().includes(query) ||
 				(patient.phone || '').toLowerCase().includes(query) ||
-				(patient.email || '').toLowerCase().includes(query);
+				(patient.email || '').toLowerCase().includes(query) ||
+				dateSearchStrings.some(dateStr => dateStr.includes(query));
 			
 			// Status filter: explicitly exclude completed patients when filtering for ongoing
 			let matchesStatus = true;
