@@ -38,7 +38,7 @@ export default function SOPViewer() {
 				{/* PDF Viewer Section */}
 				<div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
 					<iframe
-						src="/SOP.pdf"
+						src="/SOP.pdf#toolbar=0&navpanes=0&scrollbar=0"
 						className="w-full h-[calc(100vh-250px)] min-h-[600px] border-0"
 						title="Standard Operating Procedures (SOP)"
 					/>

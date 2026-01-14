@@ -199,7 +199,8 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /reportVersions/{versionId} {
-      allow read, create: if isLoggedIn() && (isClinic() || isFrontdesk() || isAdmin());
+      allow read: if isLoggedIn(); // Allow all authenticated users to read report versions
+      allow create: if isLoggedIn() && (isClinic() || isFrontdesk() || isAdmin());
       allow update, delete: if isAdmin();
     }
     match /strengthConditioningReports/{reportId} {
@@ -225,6 +226,11 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow create, update: if isFrontdesk() || isAdmin() || isSuperAdmin() || isClinic();
       allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // SESSIONS - Allow authenticated users to read/write session data
+    match /sessions/{id} {
+      allow read, write: if isLoggedIn();
     }
 
     // =========================================================
