@@ -770,10 +770,6 @@ async function generateInvoiceHtml(
 						
 						<span class="bold" style="text-decoration: underline;">Declaration</span><br>
 						We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.<br><br>
-						
-						<div style="margin-top: 20px; border: 1px solid #ccc; padding: 10px; display: inline-block;">
-							Customer's Seal and Signature
-						</div>
 					</td>
 					<td width="50%">
 						<strong>Company's Bank Details</strong><br>
