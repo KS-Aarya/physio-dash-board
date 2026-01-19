@@ -683,6 +683,14 @@ export default function InventoryManagement() {
 		return filtered;
 	}, [items, searchTerm, categoryFilter, typeFilter]);
 
+	// Filter out-of-stock consumable items for notifications
+	const outOfStockConsumables = useMemo(() => {
+		return items.filter(item => 
+			item.category === 'consumable' && 
+			item.remainingQuantity === 0
+		);
+	}, [items]);
+
 	// Import functions
 	const parseFile = async (file: File): Promise<any[]> => {
 		return new Promise((resolve, reject) => {
@@ -899,7 +907,7 @@ export default function InventoryManagement() {
 
 	return (
 		<div className="min-h-svh bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 px-6 py-10">
-			<div className="mx-auto max-w-7xl space-y-6">
+			<div className="mx-auto max-w-7xl space-y-6 relative">
 				{/* Notification Banner */}
 				{notification && (
 					<div
@@ -922,6 +930,23 @@ export default function InventoryManagement() {
 						>
 							<i className="fas fa-times" aria-hidden="true" />
 						</button>
+					</div>
+				)}
+
+				{/* Out-of-Stock Notifications - Top Left */}
+				{outOfStockConsumables.length > 0 && (
+					<div className="fixed top-4 left-4 z-40 max-w-sm space-y-2">
+						{outOfStockConsumables.map(item => (
+							<div
+								key={item.id}
+								className="flex items-center gap-3 rounded-lg bg-red-50 border-2 border-red-300 px-4 py-3 shadow-md transition-all duration-300"
+							>
+								<i className="fas fa-exclamation-triangle text-red-600 text-lg flex-shrink-0" aria-hidden="true" />
+								<p className="font-semibold text-sm text-red-800">
+									<span className="font-bold">{item.name}</span> is out-of-stock
+								</p>
+							</div>
+						))}
 					</div>
 				)}
 
