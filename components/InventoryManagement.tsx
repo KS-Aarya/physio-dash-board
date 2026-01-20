@@ -683,7 +683,7 @@ export default function InventoryManagement() {
 		return filtered;
 	}, [items, searchTerm, categoryFilter, typeFilter]);
 
-	// Filter out-of-stock consumable items for notifications
+	// Filter out-of-stock consumable items for local alerts
 	const outOfStockConsumables = useMemo(() => {
 		return items.filter(item => 
 			item.category === 'consumable' && 
@@ -933,51 +933,61 @@ export default function InventoryManagement() {
 					</div>
 				)}
 
-				{/* Out-of-Stock Notifications - Top Left */}
-				{outOfStockConsumables.length > 0 && (
-					<div className="fixed top-4 left-4 z-40 max-w-sm space-y-2">
-						{outOfStockConsumables.map(item => (
-							<div
-								key={item.id}
-								className="flex items-center gap-3 rounded-lg bg-red-50 border-2 border-red-300 px-4 py-3 shadow-md transition-all duration-300"
-							>
-								<i className="fas fa-exclamation-triangle text-red-600 text-lg flex-shrink-0" aria-hidden="true" />
-								<p className="font-semibold text-sm text-red-800">
-									<span className="font-bold">{item.name}</span> is out-of-stock
-								</p>
-							</div>
-						))}
-					</div>
-				)}
-
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between relative">
 					<PageHeader title="Inventory Management" />
 					{canManageInventory && (
-						<div className="flex items-center gap-3">
-							<button
-								type="button"
-								onClick={() => setShowImportModal(true)}
-								className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-600 via-green-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-green-700 hover:via-green-800 hover:to-emerald-700 transition-all duration-200 hover:scale-105"
-							>
-								<i className="fas fa-file-import text-xs" aria-hidden="true" />
-								Import Excel/CSV
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									setEditingItem(null);
-									setNewItem({ name: '', category: '', type: 'Physiotherapy', totalQuantity: 0 });
-									setShowAddItemModal(true);
-								}}
-								className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-blue-700 hover:via-blue-800 hover:to-indigo-700 transition-all duration-200 hover:scale-105"
-							>
-								<i className="fas fa-plus text-xs" aria-hidden="true" />
-								Add New Item
-							</button>
+						<div className="flex flex-col items-end gap-3">
+							{/* Out-of-Stock Alerts - Above buttons */}
+							{outOfStockConsumables.length > 0 && (
+								<div className="z-40 max-w-sm">
+									<div className="rounded-lg bg-red-50 border-2 border-red-300 shadow-lg p-4">
+										<div className="flex items-center gap-2 mb-3">
+											<i className="fas fa-exclamation-triangle text-red-600 text-lg flex-shrink-0" aria-hidden="true" />
+											<h3 className="font-bold text-sm text-red-800">
+												Out of Stock ({outOfStockConsumables.length})
+											</h3>
+										</div>
+										<div className="space-y-2 max-h-64 overflow-y-auto">
+											{outOfStockConsumables.map(item => (
+												<div
+													key={item.id}
+													className="flex items-center gap-2 rounded-md bg-white border border-red-200 px-3 py-2"
+												>
+													<i className="fas fa-circle text-red-500 text-xs" aria-hidden="true" />
+													<p className="text-sm text-red-800 font-medium">
+														{item.name}
+													</p>
+												</div>
+											))}
+										</div>
+									</div>
+								</div>
+							)}
+							<div className="flex items-center gap-3">
+								<button
+									type="button"
+									onClick={() => setShowImportModal(true)}
+									className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-600 via-green-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-green-700 hover:via-green-800 hover:to-emerald-700 transition-all duration-200 hover:scale-105"
+								>
+									<i className="fas fa-file-import text-xs" aria-hidden="true" />
+									Import Excel/CSV
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										setEditingItem(null);
+										setNewItem({ name: '', category: '', type: 'Physiotherapy', totalQuantity: 0 });
+										setShowAddItemModal(true);
+									}}
+									className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:from-blue-700 hover:via-blue-800 hover:to-indigo-700 transition-all duration-200 hover:scale-105"
+								>
+									<i className="fas fa-plus text-xs" aria-hidden="true" />
+									Add New Item
+								</button>
+							</div>
 						</div>
 					)}
 				</div>
-
 
 				{/* Inventory Items List */}
 				<section className="rounded-2xl bg-white p-6 shadow-lg border border-slate-200">
