@@ -41,6 +41,7 @@ export default function InternshipManagement() {
 	const [showEditModal, setShowEditModal] = useState(false);
 	const [editingIntern, setEditingIntern] = useState<Intern | null>(null);
 	const [processingPayment, setProcessingPayment] = useState<string | null>(null);
+	const [searchTerm, setSearchTerm] = useState('');
 	
 	// Form state
 	const [formData, setFormData] = useState({
@@ -385,6 +386,21 @@ export default function InternshipManagement() {
 			.reduce((sum, intern) => sum + (intern.amount || 0), 0);
 	}, [interns]);
 
+	// Filter interns based on search term
+	const filteredInterns = useMemo(() => {
+		if (!searchTerm.trim()) {
+			return interns;
+		}
+		const term = searchTerm.toLowerCase().trim();
+		return interns.filter(intern => 
+			intern.name.toLowerCase().includes(term) ||
+			intern.college.toLowerCase().includes(term) ||
+			formatDegree(intern.degree).toLowerCase().includes(term) ||
+			(intern.utrNumber && intern.utrNumber.toLowerCase().includes(term)) ||
+			(intern.receiptNumber && intern.receiptNumber.toLowerCase().includes(term))
+		);
+	}, [interns, searchTerm]);
+
 	if (loading) {
 		return (
 			<div className="min-h-screen p-8">
@@ -436,73 +452,101 @@ export default function InternshipManagement() {
 					</button>
 				</div>
 
+				{/* Search Bar */}
+				<div className="mb-4">
+					<div className="relative">
+						<i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" aria-hidden="true" />
+						<input
+							type="text"
+							placeholder="Search interns by name, college, degree, UTR number, or receipt number..."
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+							className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+						/>
+						{searchTerm && (
+							<button
+								type="button"
+								onClick={() => setSearchTerm('')}
+								className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+								aria-label="Clear search"
+							>
+								<i className="fas fa-times" aria-hidden="true" />
+							</button>
+						)}
+					</div>
+				</div>
+
 				{interns.length === 0 ? (
 					<div className="bg-white rounded-lg shadow p-8 text-center text-slate-500">
 						<p>No interns registered yet. Click "Add New Intern" to get started.</p>
 					</div>
+				) : filteredInterns.length === 0 ? (
+					<div className="bg-white rounded-lg shadow p-8 text-center text-slate-500">
+						<p>No interns match your search. Try a different search term.</p>
+					</div>
 				) : (
 					<div className="bg-white rounded-lg shadow overflow-hidden">
-						<div className="overflow-x-auto max-h-[calc(100vh-400px)] overflow-y-auto">
-							<table className="min-w-full divide-y divide-slate-200">
+						<div className="max-h-[calc(100vh-400px)] overflow-y-auto overflow-x-hidden">
+							<table className="w-full divide-y divide-slate-200" style={{ tableLayout: 'fixed' }}>
 								<thead className="bg-slate-50 sticky top-0 z-10">
 									<tr>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Sl. No</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Name</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">College/University</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Degree</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Date of Joining</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Date of Leaving</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Amount (₹)</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Payment Mode</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">UTR Number</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Receipt No.</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Status</th>
-										<th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '5%' }}>Sl. No</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '12%' }}>Name</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '15%' }}>College/University</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '12%' }}>Degree</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '10%' }}>Date of Joining</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '10%' }}>Date of Leaving</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Amount (₹)</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Payment Mode</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>UTR Number</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Receipt No.</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '6%' }}>Status</th>
+										<th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Actions</th>
 									</tr>
 								</thead>
 								<tbody className="bg-white divide-y divide-slate-200">
-									{interns.map(intern => {
+									{filteredInterns.map(intern => {
 										const expired = !intern.isPaid && isExpired(intern.dateOfLeaving);
 										return (
 											<tr
 												key={intern.id}
 												className={expired ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-slate-50'}
 											>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">{intern.serialNumber}</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{intern.name}</td>
-												<td className="px-4 py-3 text-sm text-slate-700">{intern.college}</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-slate-700">{formatDegree(intern.degree)}</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-slate-700">{formatDate(intern.dateOfJoining)}</td>
-												<td className={`px-4 py-3 whitespace-nowrap text-sm ${expired ? 'font-semibold text-red-600' : 'text-slate-700'}`}>
+												<td className="px-2 py-3 text-sm text-slate-900">{intern.serialNumber}</td>
+												<td className="px-2 py-3 text-sm font-medium text-slate-900 truncate" title={intern.name}>{intern.name}</td>
+												<td className="px-2 py-3 text-sm text-slate-700 truncate" title={intern.college}>{intern.college}</td>
+												<td className="px-2 py-3 text-sm text-slate-700 truncate" title={formatDegree(intern.degree)}>{formatDegree(intern.degree)}</td>
+												<td className="px-2 py-3 text-sm text-slate-700 whitespace-nowrap">{formatDate(intern.dateOfJoining)}</td>
+												<td className={`px-2 py-3 text-sm ${expired ? 'font-semibold text-red-600' : 'text-slate-700'} whitespace-nowrap`}>
 													{formatDate(intern.dateOfLeaving)}
-													{expired && <span className="ml-2 text-xs text-red-600">(Expired)</span>}
+													{expired && <span className="ml-1 text-xs text-red-600">(Exp)</span>}
 												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900 font-medium">₹{intern.amount.toLocaleString('en-IN')}</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-slate-700">
+												<td className="px-2 py-3 text-sm text-slate-900 font-medium whitespace-nowrap">₹{intern.amount.toLocaleString('en-IN')}</td>
+												<td className="px-2 py-3 text-sm text-slate-700 whitespace-nowrap">
 													{intern.paymentMode || 'Cash'}
 												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-slate-700">
+												<td className="px-2 py-3 text-sm text-slate-700 truncate" title={intern.utrNumber || ''}>
 													{intern.utrNumber || '—'}
 												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-slate-700">
+												<td className="px-2 py-3 text-sm text-slate-700 truncate" title={intern.receiptNumber || ''}>
 													{intern.receiptNumber || '—'}
 												</td>
-												<td className="px-4 py-3 whitespace-nowrap">
+												<td className="px-2 py-3">
 													{intern.isPaid ? (
-														<span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+														<span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 whitespace-nowrap">
 															Paid
 														</span>
 													) : (
-														<span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+														<span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 whitespace-nowrap">
 															Pending
 														</span>
 													)}
 												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm">
-													<div className="flex items-center gap-2">
+												<td className="px-2 py-3 text-sm">
+													<div className="flex items-center gap-1">
 														<button
 															onClick={() => handleEdit(intern)}
-															className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
+															className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
 															title="Edit intern details"
 														>
 															<i className="fas fa-edit"></i>
@@ -511,13 +555,13 @@ export default function InternshipManagement() {
 															<button
 																onClick={() => handlePay(intern)}
 																disabled={processingPayment === intern.id}
-																className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors text-xs"
+																className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors text-xs whitespace-nowrap"
 															>
-																{processingPayment === intern.id ? 'Processing...' : 'Pay'}
+																{processingPayment === intern.id ? '...' : 'Pay'}
 															</button>
 														) : (
-															<span className="text-xs text-slate-500">
-																Paid on {formatDate(intern.paymentDate || '')}
+															<span className="text-xs text-slate-500 truncate" title={`Paid on ${formatDate(intern.paymentDate || '')}`}>
+																Paid
 															</span>
 														)}
 													</div>
