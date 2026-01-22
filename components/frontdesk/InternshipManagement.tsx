@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import PageHeader from '@/components/PageHeader';
 import { notifyFrontdesk } from '@/lib/notificationUtils';
+import * as XLSX from 'xlsx';
 
 interface Intern {
 	id?: string;
@@ -64,6 +65,10 @@ export default function InternshipManagement() {
 			(snapshot: QuerySnapshot) => {
 				const loadedInterns = snapshot.docs.map(docSnap => {
 					const data = docSnap.data();
+					// Ensure isPaid is a proper boolean (handle existing data that might be string "true"/"false" or other formats)
+					const isPaid = data.isPaid === true || data.isPaid === 'true' || data.isPaid === 1;
+					// Ensure amount is a number (handle existing data that might be string or other formats)
+					const amount = typeof data.amount === 'number' ? data.amount : (typeof data.amount === 'string' ? parseFloat(data.amount) || 0 : 0);
 					return {
 						id: docSnap.id,
 						serialNumber: data.serialNumber || 0,
@@ -72,8 +77,8 @@ export default function InternshipManagement() {
 						degree: data.degree || "Bachelor's Degree (BPT)",
 						dateOfJoining: data.dateOfJoining || '',
 						dateOfLeaving: data.dateOfLeaving || '',
-						amount: data.amount || 0,
-						isPaid: data.isPaid || false,
+						amount: amount,
+						isPaid: isPaid,
 						paymentDate: data.paymentDate || undefined,
 						receiptNumber: data.receiptNumber || undefined,
 						paymentMode: data.paymentMode || 'Cash',
@@ -119,13 +124,8 @@ export default function InternshipManagement() {
 		}
 	}, [interns, user?.uid]);
 
-	// Auto-calculate amount when degree changes
-	useEffect(() => {
-		setFormData(prev => ({
-			...prev,
-			amount: DEGREE_AMOUNTS[prev.degree] || 0,
-		}));
-	}, [formData.degree]);
+	// Note: Auto-calculation is now handled directly in the degree dropdown onChange handler
+	// to avoid overwriting existing amounts when editing an intern
 
 	const handleAddIntern = async () => {
 		if (!formData.name.trim() || !formData.college.trim() || !formData.dateOfJoining || !formData.dateOfLeaving) {
@@ -154,6 +154,13 @@ export default function InternshipManagement() {
 				? Math.max(...interns.map(i => i.serialNumber)) + 1 
 				: 1;
 
+			// Ensure amount is rounded to integer to avoid floating-point errors
+			const amountValue = Math.round(typeof formData.amount === 'number' 
+				? formData.amount 
+				: (typeof formData.amount === 'string' 
+					? parseFloat(formData.amount) || 0 
+					: 0));
+			
 			// Build document data, only including fields with values
 			const docData: Record<string, any> = {
 				serialNumber: nextSerialNumber,
@@ -162,7 +169,7 @@ export default function InternshipManagement() {
 				degree: formData.degree,
 				dateOfJoining: formData.dateOfJoining,
 				dateOfLeaving: formData.dateOfLeaving,
-				amount: Number(formData.amount),
+				amount: amountValue,
 				isPaid: false,
 				paymentMode: formData.paymentMode,
 				createdAt: serverTimestamp(),
@@ -292,6 +299,13 @@ export default function InternshipManagement() {
 
 		setSubmitting(true);
 		try {
+			// Ensure amount is a valid number and round to integer to avoid floating-point errors
+			const amountValue = typeof formData.amount === 'number' 
+				? Math.round(formData.amount)
+				: (typeof formData.amount === 'string' 
+					? Math.round(parseFloat(formData.amount) || 0)
+					: 0);
+			
 			// Build update data, only including fields with values
 			const updateData: Record<string, any> = {
 				name: formData.name.trim(),
@@ -299,7 +313,7 @@ export default function InternshipManagement() {
 				degree: formData.degree,
 				dateOfJoining: formData.dateOfJoining,
 				dateOfLeaving: formData.dateOfLeaving,
-				amount: Number(formData.amount),
+				amount: amountValue,
 				paymentMode: formData.paymentMode,
 				updatedAt: serverTimestamp(),
 			};
@@ -378,12 +392,42 @@ export default function InternshipManagement() {
 		return corrected;
 	};
 
+	// Helper function to get amount for a degree, with fallback normalization
+	const getDegreeAmount = (degree: string | undefined): number => {
+		if (!degree) return 0;
+		
+		// Try direct lookup first
+		const directLookup = DEGREE_AMOUNTS[degree as DegreeType];
+		if (directLookup !== undefined) return directLookup;
+		
+		// Normalize and try again
+		const normalized = formatDegree(degree);
+		const normalizedLookup = DEGREE_AMOUNTS[normalized as DegreeType];
+		if (normalizedLookup !== undefined) return normalizedLookup;
+		
+		// Fallback: check by keywords
+		if (degree.includes("Bachelor") || degree.includes("BPT")) {
+			return DEGREE_AMOUNTS["Bachelor's Degree (BPT)"];
+		}
+		if (degree.includes("Master") || degree.includes("MPT")) {
+			return DEGREE_AMOUNTS["Master's Degree (MPT)"];
+		}
+		if (degree.includes("Clinical")) {
+			return DEGREE_AMOUNTS["Clinical"];
+		}
+		
+		return 0;
+	};
+
 	// Calculate statistics
 	const totalInterns = useMemo(() => interns.length, [interns]);
 	const totalAmountPaid = useMemo(() => {
 		return interns
-			.filter(intern => intern.isPaid)
-			.reduce((sum, intern) => sum + (intern.amount || 0), 0);
+			.filter(intern => intern.isPaid === true)
+			.reduce((sum, intern) => {
+				const amount = typeof intern.amount === 'number' ? intern.amount : 0;
+				return sum + amount;
+			}, 0);
 	}, [interns]);
 
 	// Filter interns based on search term
@@ -400,6 +444,72 @@ export default function InternshipManagement() {
 			(intern.receiptNumber && intern.receiptNumber.toLowerCase().includes(term))
 		);
 	}, [interns, searchTerm]);
+
+	// Export function for Excel/CSV
+	const handleExport = (format: 'csv' | 'excel' = 'excel') => {
+		if (filteredInterns.length === 0) {
+			alert('No interns to export.');
+			return;
+		}
+
+		const rows = [
+			['Serial No', 'Name', 'College/University', 'Degree', 'Date of Joining', 'Date of Leaving', 'Amount (₹)', 'Payment Mode', 'UTR Number', 'Receipt Number', 'Status', 'Payment Date'],
+			...filteredInterns.map(intern => [
+				intern.serialNumber || '',
+				intern.name || '',
+				intern.college || '',
+				formatDegree(intern.degree) || '',
+				formatDate(intern.dateOfJoining) || '',
+				formatDate(intern.dateOfLeaving) || '',
+				intern.amount || 0,
+				intern.paymentMode || 'Cash',
+				intern.utrNumber || '',
+				intern.receiptNumber || '',
+				intern.isPaid ? 'Paid' : 'Pending',
+				intern.paymentDate ? formatDate(intern.paymentDate) : '',
+			]),
+		];
+
+		if (format === 'csv') {
+			const csv = rows
+				.map(line => line.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))
+				.join('\n');
+
+			const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+			const url = URL.createObjectURL(blob);
+
+			const link = document.createElement('a');
+			link.href = url;
+			link.setAttribute('download', `interns-export-${new Date().toISOString().slice(0, 10)}.csv`);
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			URL.revokeObjectURL(url);
+		} else {
+			// Excel export
+			const ws = XLSX.utils.aoa_to_sheet(rows);
+			const wb = XLSX.utils.book_new();
+			XLSX.utils.book_append_sheet(wb, ws, 'Interns');
+
+			// Set column widths
+			ws['!cols'] = [
+				{ wch: 10 }, // Serial No
+				{ wch: 25 }, // Name
+				{ wch: 30 }, // College/University
+				{ wch: 25 }, // Degree
+				{ wch: 15 }, // Date of Joining
+				{ wch: 15 }, // Date of Leaving
+				{ wch: 12 }, // Amount
+				{ wch: 12 }, // Payment Mode
+				{ wch: 20 }, // UTR Number
+				{ wch: 15 }, // Receipt Number
+				{ wch: 10 }, // Status
+				{ wch: 15 }, // Payment Date
+			];
+
+			XLSX.writeFile(wb, `interns-export-${new Date().toISOString().slice(0, 10)}.xlsx`);
+		}
+	};
 
 	if (loading) {
 		return (
@@ -443,13 +553,23 @@ export default function InternshipManagement() {
 			<div className="mt-6">
 				<div className="mb-4 flex justify-between items-center">
 					<h2 className="text-xl font-semibold text-slate-800">Interns List</h2>
-					<button
-						onClick={() => setShowAddModal(true)}
-						className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-					>
-						<i className="fas fa-plus"></i>
-						Add New Intern
-					</button>
+					<div className="flex items-center gap-3">
+						<button
+							onClick={() => handleExport('excel')}
+							className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+							title="Export to Excel"
+						>
+							<i className="fas fa-file-excel"></i>
+							Export Excel/CSV
+						</button>
+						<button
+							onClick={() => setShowAddModal(true)}
+							className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+						>
+							<i className="fas fa-plus"></i>
+							Add New Intern
+						</button>
+					</div>
 				</div>
 
 				{/* Search Bar */}
@@ -616,7 +736,15 @@ export default function InternshipManagement() {
 								</label>
 								<select
 									value={formData.degree}
-									onChange={(e) => setFormData({ ...formData, degree: e.target.value as DegreeType })}
+									onChange={(e) => {
+										const newDegree = e.target.value as DegreeType;
+										// Auto-calculate amount only when user manually changes degree
+										setFormData({ 
+											...formData, 
+											degree: newDegree,
+											amount: DEGREE_AMOUNTS[newDegree] || 0
+										});
+									}}
 									className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 bg-white"
 								>
 									<option value="Bachelor's Degree (BPT)">Bachelor's Degree (BPT)</option>
@@ -656,13 +784,33 @@ export default function InternshipManagement() {
 								<input
 									type="number"
 									value={formData.amount ?? 0}
-									onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+									onChange={(e) => {
+										const inputValue = e.target.value;
+										// Handle empty input
+										if (inputValue === '' || inputValue === '-') {
+											setFormData({ ...formData, amount: 0 });
+											return;
+										}
+										// Parse and round to nearest integer to avoid floating-point errors
+										const parsed = parseFloat(inputValue);
+										const rounded = isNaN(parsed) ? 0 : Math.round(parsed);
+										setFormData({ ...formData, amount: rounded });
+									}}
 									className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 bg-white"
 									min="0"
-									step="0.01"
+									step="1"
 								/>
 								<p className="mt-1 text-xs text-slate-500">
-									Auto-calculated: ₹{(DEGREE_AMOUNTS[formData.degree] || 0).toLocaleString('en-IN')} for {formData.degree}. You can edit this amount.
+									{(() => {
+										const amount = getDegreeAmount(formData.degree);
+										let degreeDisplay = "Bachelor's Degree";
+										if (formData.degree && (formData.degree.includes("Master") || formData.degree.includes("MPT"))) {
+											degreeDisplay = "Master's Degree";
+										} else if (formData.degree && formData.degree.includes("Clinical")) {
+											degreeDisplay = "Clinical";
+										}
+										return `Auto-calculated: ₹${amount.toLocaleString('en-IN')} for ${degreeDisplay}. You can edit this amount.`;
+									})()}
 								</p>
 							</div>
 
@@ -782,7 +930,15 @@ export default function InternshipManagement() {
 								</label>
 								<select
 									value={formData.degree}
-									onChange={(e) => setFormData({ ...formData, degree: e.target.value as DegreeType })}
+									onChange={(e) => {
+										const newDegree = e.target.value as DegreeType;
+										// Auto-calculate amount only when user manually changes degree
+										setFormData({ 
+											...formData, 
+											degree: newDegree,
+											amount: DEGREE_AMOUNTS[newDegree] || 0
+										});
+									}}
 									className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 bg-white"
 								>
 									<option value="Bachelor's Degree (BPT)">Bachelor's Degree (BPT)</option>
@@ -822,13 +978,33 @@ export default function InternshipManagement() {
 								<input
 									type="number"
 									value={formData.amount ?? 0}
-									onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+									onChange={(e) => {
+										const inputValue = e.target.value;
+										// Handle empty input
+										if (inputValue === '' || inputValue === '-') {
+											setFormData({ ...formData, amount: 0 });
+											return;
+										}
+										// Parse and round to nearest integer to avoid floating-point errors
+										const parsed = parseFloat(inputValue);
+										const rounded = isNaN(parsed) ? 0 : Math.round(parsed);
+										setFormData({ ...formData, amount: rounded });
+									}}
 									className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 bg-white"
 									min="0"
-									step="0.01"
+									step="1"
 								/>
 								<p className="mt-1 text-xs text-slate-500">
-									Auto-calculated: ₹{(DEGREE_AMOUNTS[formData.degree] || 0).toLocaleString('en-IN')} for {formData.degree}. You can edit this amount.
+									{(() => {
+										const amount = getDegreeAmount(formData.degree);
+										let degreeDisplay = "Bachelor's Degree";
+										if (formData.degree && (formData.degree.includes("Master") || formData.degree.includes("MPT"))) {
+											degreeDisplay = "Master's Degree";
+										} else if (formData.degree && formData.degree.includes("Clinical")) {
+											degreeDisplay = "Clinical";
+										}
+										return `Auto-calculated: ₹${amount.toLocaleString('en-IN')} for ${degreeDisplay}. You can edit this amount.`;
+									})()}
 								</p>
 							</div>
 

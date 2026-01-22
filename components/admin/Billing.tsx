@@ -776,6 +776,7 @@ export default function Billing() {
 	const [appointments, setAppointments] = useState<(AdminAppointmentRecord & { id: string; amount?: number; isExtraTreatment?: boolean })[]>([]);
 	const [patients, setPatients] = useState<(AdminPatientRecord & { id?: string; patientType?: string; department?: string; sessionAllowance?: SessionAllowance; packageAmount?: number; totalSessionsRequired?: number })[]>([]);
 	const [staff, setStaff] = useState<StaffMember[]>([]);
+	const [interns, setInterns] = useState<Array<{ id?: string; amount: number; isPaid: boolean }>>([]);
 
 	const [doctorFilter, setDoctorFilter] = useState<'all' | string>('all');
 	const [departmentFilter, setDepartmentFilter] = useState<'all' | string>('all');
@@ -931,6 +932,30 @@ export default function Billing() {
 			error => {
 				console.error('Failed to load staff', error);
 				setStaff([]);
+			}
+		);
+
+		return () => unsubscribe();
+	}, []);
+
+	// Load interns from Firestore
+	useEffect(() => {
+		const unsubscribe = onSnapshot(
+			collection(db, 'interns'),
+			(snapshot: QuerySnapshot) => {
+				const mapped = snapshot.docs.map(docSnap => {
+					const data = docSnap.data();
+					return {
+						id: docSnap.id,
+						amount: data.amount ? Number(data.amount) : 0,
+						isPaid: data.isPaid === true,
+					};
+				});
+				setInterns([...mapped]);
+			},
+			error => {
+				console.error('Failed to load interns', error);
+				setInterns([]);
 			}
 		);
 
@@ -1319,6 +1344,13 @@ export default function Billing() {
 	const totalCollections = useMemo(
 		() => billingHistoryRows.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? row.amount : 0), 0),
 		[billingHistoryRows]
+	);
+
+	const internRevenue = useMemo(
+		() => interns
+			.filter(intern => intern.isPaid)
+			.reduce((sum, intern) => sum + (Number.isFinite(intern.amount) ? intern.amount : 0), 0),
+		[interns]
 	);
 
 	const openInvoice = (details: InvoiceDetails) => {
@@ -2199,6 +2231,28 @@ export default function Billing() {
 							</div>
 						</div>
 					)}
+				</section>
+
+				{/* Intern Revenue Card */}
+				<section className="rounded-2xl bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.07)]">
+					<div className="mb-4">
+						<h3 className="text-lg font-semibold text-slate-900">Internship Revenue</h3>
+						<p className="text-sm text-slate-600">Total revenue generated from internship payments.</p>
+					</div>
+					<div className="rounded-xl border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="text-xs uppercase tracking-wide text-green-600 font-medium">Total Intern Revenue</p>
+								<p className="mt-2 text-3xl font-bold text-green-900">{rupee(internRevenue)}</p>
+								<p className="mt-1 text-sm text-green-700">
+									{interns.filter(intern => intern.isPaid).length} paid intern{interns.filter(intern => intern.isPaid).length !== 1 ? 's' : ''}
+								</p>
+							</div>
+							<div className="bg-green-100 rounded-full p-4">
+								<i className="fas fa-graduation-cap text-3xl text-green-600"></i>
+							</div>
+						</div>
+					</div>
 				</section>
 
 				{/* Cycle Reports */}
