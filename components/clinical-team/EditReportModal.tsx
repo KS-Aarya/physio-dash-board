@@ -3002,7 +3002,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 	};
 
 	// Field change handlers for report form
-	const handleFieldChange = (field: keyof PatientRecordFull, value: any) => {
+	const handleFieldChange = (field: keyof PatientRecordFull | string, value: any) => {
 		if (!editable) return;
 		setFormData(prev => ({ ...prev, [field]: value }));
 		
@@ -3035,7 +3035,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 		}
 	};
 
-	const handleCheckboxChange = (field: keyof PatientRecordFull, checked: boolean) => {
+	const handleCheckboxChange = (field: keyof PatientRecordFull | string, checked: boolean) => {
 		if (!editable) return;
 		setFormData(prev => ({ ...prev, [field]: checked }));
 	};
@@ -3414,575 +3414,288 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 								<h3 className="mb-4 text-sm font-semibold text-sky-600">Assessment</h3>
 								<div className="grid gap-4 sm:grid-cols-2">
 									<div>
-										<label className="block text-xs font-medium text-slate-500">Referred By</label>
+										<label className="block text-xs font-medium text-slate-500">Referred by</label>
 										<input
 											type="text"
 											value={formData.referredBy || ''}
 											onChange={e => handleFieldChange('referredBy', e.target.value)}
 											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Enter referring doctor or source"
 										/>
 									</div>
 									<div>
-										<label className="block text-xs font-medium text-slate-500">Chief Complaint</label>
+										<label className="block text-xs font-medium text-slate-500">Chief complaints</label>
 										<textarea
 											value={formData.chiefComplaint || ''}
 											onChange={e => handleFieldChange('chiefComplaint', e.target.value)}
 											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={2}
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">History</label>
-										<textarea
-											value={formData.history || ''}
-											onChange={e => handleFieldChange('history', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
 											rows={3}
+											placeholder="Enter chief complaints"
 										/>
 									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Medical History</label>
-										<div className="mt-2 space-y-2">
-											<label className="flex items-center gap-2 text-sm text-slate-700">
+								</div>
+							</div>
+
+							{/* 1. Subjective Assessment - History of Present Illness (HOPI) */}
+							<div className="mb-8">
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">1. Subjective Assessment</h3>
+								<div>
+									<label className="block text-xs font-medium text-slate-500 mb-2">History of Present Illness (HOPI)</label>
+									<p className="text-xs text-slate-500 mb-2">Please describe the history of the present condition detailedly.</p>
+									<textarea
+										value={formData.historyOfPresentIllness || formData.history || ''}
+										onChange={e => handleFieldChange('historyOfPresentIllness', e.target.value)}
+										className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+										rows={6}
+										placeholder="Enter detailed history of present illness..."
+									/>
+								</div>
+							</div>
+
+							{/* 2. Pain Assessment Section */}
+							<div className="mb-8">
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">2. Pain Assessment</h3>
+								
+								{/* Pain Mapping System */}
+								<div className="mb-4">
+									<label className="block text-xs font-medium text-slate-500 mb-2">Pain Mapping System</label>
+									<p className="text-xs text-slate-500 mb-2">Mark the area of pain:</p>
+									<input
+										type="text"
+										value={formData.painLocation || formData.siteSide || ''}
+										onChange={e => handleFieldChange('painLocation', e.target.value)}
+										className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+										placeholder="Enter location description of pain"
+									/>
+								</div>
+
+								{/* Pain Characteristics */}
+								<div className="mb-4">
+									<label className="block text-xs font-medium text-slate-500 mb-2">Pain Characteristics</label>
+									<div className="grid gap-4 sm:grid-cols-2">
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-1">Type of Pain</label>
+											<select
+												value={formData.painType || ''}
+												onChange={e => handleFieldChange('painType', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											>
+												<option value="">Select type</option>
+												<option value="Sharp">Sharp</option>
+												<option value="Dull">Dull</option>
+												<option value="Throbbing">Throbbing</option>
+												<option value="Burning">Burning</option>
+												<option value="Aching">Aching</option>
+												<option value="Radiating">Radiating</option>
+												<option value="Numbness">Numbness</option>
+												<option value="Other">Other</option>
+											</select>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-2">VAS Scale (Visual Analog Scale)</label>
+											<div className="flex items-center gap-2">
+												<span className="text-xs font-semibold text-slate-500">0</span>
 												<input
-													type="checkbox"
-													checked={formData.med_xray || false}
-													onChange={e => handleCheckboxChange('med_xray', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+													type="range"
+													min="0"
+													max="10"
+													value={vasValue}
+													onChange={e => handleFieldChange('vasScale', e.target.value)}
+													className="flex-1 h-2 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 rounded-lg appearance-none cursor-pointer"
 												/>
-												X RAYS
-											</label>
-											<label className="flex items-center gap-2 text-sm text-slate-700">
-												<input
-													type="checkbox"
-													checked={formData.med_mri || false}
-													onChange={e => handleCheckboxChange('med_mri', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
-												/>
-												MRI
-											</label>
-											<label className="flex items-center gap-2 text-sm text-slate-700">
-												<input
-													type="checkbox"
-													checked={formData.med_report || false}
-													onChange={e => handleCheckboxChange('med_report', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
-												/>
-												Reports
-											</label>
-											<label className="flex items-center gap-2 text-sm text-slate-700">
-												<input
-													type="checkbox"
-													checked={formData.med_ct || false}
-													onChange={e => handleCheckboxChange('med_ct', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
-												/>
-												CT Scans
-											</label>
+												<span className="text-xs font-semibold text-slate-500">10</span>
+											</div>
+											<div className="mt-2 text-center">
+												<span className="text-xs text-slate-600 font-medium">{vasValue}/10 {vasValue === 0 ? '(No Pain)' : vasValue === 10 ? '(Worst Pain)' : ''}</span>
+											</div>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-1">Aggravating Factors</label>
+											<p className="text-xs text-slate-500 mb-1">What makes the pain worse?</p>
+											<input
+												type="text"
+												value={formData.aggravatingFactor || ''}
+												onChange={e => handleFieldChange('aggravatingFactor', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+												placeholder="Enter aggravating factors"
+											/>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-1">Relieving Factors</label>
+											<p className="text-xs text-slate-500 mb-1">What makes the pain better?</p>
+											<input
+												type="text"
+												value={formData.relievingFactor || ''}
+												onChange={e => handleFieldChange('relievingFactor', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+												placeholder="Enter relieving factors"
+											/>
 										</div>
 									</div>
+								</div>
+							</div>
+
+							{/* 3. Medical History */}
+							<div className="mb-8">
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">3. Medical History</h3>
+								<div className="grid gap-4 sm:grid-cols-1">
 									<div>
-										<label className="block text-xs font-medium text-slate-500">Surgical History</label>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Past Medical History</label>
+										<textarea
+											value={formData.pastMedicalHistory || ''}
+											onChange={e => handleFieldChange('pastMedicalHistory', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											rows={4}
+											placeholder="Enter past medical history"
+										/>
+									</div>
+									<div>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Past Surgical History</label>
 										<textarea
 											value={formData.surgicalHistory || ''}
 											onChange={e => handleFieldChange('surgicalHistory', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={2}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											rows={4}
+											placeholder="Enter past surgical history"
 										/>
 									</div>
 									<div>
-										<label className="block text-xs font-medium text-slate-500">Personal History</label>
-										<div className="mt-2 space-y-2">
-											<label className="flex items-center gap-2 text-sm text-slate-700">
-												<input
-													type="checkbox"
-													checked={formData.per_smoking || false}
-													onChange={e => handleCheckboxChange('per_smoking', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
-												/>
-												Smoking
-											</label>
-											<label className="flex items-center gap-2 text-sm text-slate-700">
-												<input
-													type="checkbox"
-													checked={formData.per_drinking || false}
-													onChange={e => handleCheckboxChange('per_drinking', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
-												/>
-												Drinking
-											</label>
-											<label className="flex items-center gap-2 text-sm text-slate-700">
-												<input
-													type="checkbox"
-													checked={formData.per_alcohol || false}
-													onChange={e => handleCheckboxChange('per_alcohol', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
-												/>
-												Alcohol
-											</label>
-											<label className="flex items-center gap-2 text-sm text-slate-700">
-												<input
-													type="checkbox"
-													checked={formData.per_drugs || false}
-													onChange={e => handleCheckboxChange('per_drugs', e.target.checked)}
-													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
-												/>
-												Drugs
-											</label>
-											{formData.per_drugs && (
-												<input
-													type="text"
-													value={formData.drugsText || ''}
-													onChange={e => handleFieldChange('drugsText', e.target.value)}
-													className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-													placeholder="Which drug?"
-												/>
-											)}
-										</div>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Sleep Cycle</label>
-										<input
-											type="text"
-											value={formData.sleepCycle || ''}
-											onChange={e => handleFieldChange('sleepCycle', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500 mb-2">Hydration</label>
-										<div className="flex items-center gap-2">
-											<span className="text-xs font-semibold text-slate-500">1</span>
-											<input
-												type="range"
-												min="1"
-												max="8"
-												value={hydrationValue}
-												onChange={e => handleFieldChange('hydration', e.target.value)}
-												className="flex-1 h-2 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 rounded-lg appearance-none cursor-pointer"
-											/>
-											<span className="text-xs font-semibold text-slate-500">8</span>
-										</div>
-										<div className="mt-3 flex items-center justify-center gap-2">
-											<span className="text-3xl transition-transform duration-200" style={{ transform: 'scale(1.2)' }}>
-												{hydrationEmoji}
-											</span>
-											<span className="text-xs text-slate-600 font-medium">{hydrationValue}/8</span>
-										</div>
-										<div className="mt-2 grid grid-cols-8 text-[10px] text-center text-slate-400">
-											{HYDRATION_EMOJIS.map((emoji, idx) => (
-												<span
-													key={`hydration-${emoji}-${idx}`}
-													className={`transition-transform duration-200 ${idx + 1 === hydrationValue ? 'scale-110' : 'scale-90'}`}
-												>
-													{emoji}
-												</span>
-											))}
-										</div>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Nutrition</label>
-										<input
-											type="text"
-											value={formData.nutrition || ''}
-											onChange={e => handleFieldChange('nutrition', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-								</div>
-							</div>
-
-							{/* Pain Assessment Section */}
-							<div className="mb-8">
-								<h3 className="mb-4 text-lg font-semibold text-sky-600 border-b border-sky-200 pb-2">Pain Assessment</h3>
-								<div className="grid gap-4 sm:grid-cols-2">
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Site and Side</label>
-										<input
-											type="text"
-											value={formData.siteSide || ''}
-											onChange={e => handleFieldChange('siteSide', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Onset</label>
-										<input
-											type="text"
-											value={formData.onset || ''}
-											onChange={e => handleFieldChange('onset', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Duration</label>
-										<input
-											type="text"
-											value={formData.duration || ''}
-											onChange={e => handleFieldChange('duration', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Nature of Injury</label>
-										<input
-											type="text"
-											value={formData.natureOfInjury || ''}
-											onChange={e => handleFieldChange('natureOfInjury', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Mechanism of Injury</label>
-										<input
-											type="text"
-											value={formData.mechanismOfInjury || ''}
-											onChange={e => handleFieldChange('mechanismOfInjury', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Pain Type</label>
-										<input
-											type="text"
-											value={formData.painType || ''}
-											onChange={e => handleFieldChange('painType', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Pain Intensity</label>
-										<input
-											type="text"
-											value={formData.painIntensity || ''}
-											onChange={e => handleFieldChange('painIntensity', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500 mb-2">VAS Scale</label>
-										<div className="flex items-center gap-2">
-											<span className="text-xs font-semibold text-slate-500">1</span>
-											<input
-												type="range"
-												min="1"
-												max="10"
-												value={vasValue}
-												onChange={e => handleFieldChange('vasScale', e.target.value)}
-												className="flex-1 h-2 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 rounded-lg appearance-none cursor-pointer"
-											/>
-											<span className="text-xs font-semibold text-slate-500">10</span>
-										</div>
-										<div className="mt-3 flex items-center justify-center gap-2">
-											<span
-												className="text-3xl transition-transform duration-200"
-												style={{ transform: 'scale(1.2)' }}
-												role="img"
-												aria-label="Pain emoji"
-											>
-												{vasEmoji}
-											</span>
-											<span className="text-xs text-slate-600 font-medium">{vasValue}/10</span>
-										</div>
-										<div className="mt-2 grid grid-cols-10 text-[10px] text-center text-slate-400">
-											{VAS_EMOJIS.map((emoji, idx) => (
-												<span
-													key={emoji + idx}
-													className={`transition-transform duration-200 ${idx + 1 === vasValue ? 'scale-110' : 'scale-90'}`}
-												>
-													{emoji}
-												</span>
-											))}
-										</div>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Aggravating Factor</label>
-										<input
-											type="text"
-											value={formData.aggravatingFactor || ''}
-											onChange={e => handleFieldChange('aggravatingFactor', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Relieving Factor</label>
-										<input
-											type="text"
-											value={formData.relievingFactor || ''}
-											onChange={e => handleFieldChange('relievingFactor', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-								</div>
-							</div>
-
-							{/* On Observation Section */}
-							<div className="mb-8">
-								<h3 className="mb-4 text-lg font-semibold text-sky-600 border-b border-sky-200 pb-2">On Observation</h3>
-								<div className="grid gap-4 sm:grid-cols-2">
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Built</label>
-										<input
-											type="text"
-											value={formData.built || ''}
-											onChange={e => handleFieldChange('built', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500 mb-2">Posture</label>
-										<div className="flex gap-4">
-											<label className="flex items-center gap-2">
-												<input
-													type="radio"
-													name="posture"
-													value="Manual"
-													checked={formData.posture === 'Manual'}
-													onChange={e => handleFieldChange('posture', e.target.value)}
-													className="text-sky-600"
-												/>
-												<span className="text-sm text-slate-800">Manual</span>
-											</label>
-											<label className="flex items-center gap-2">
-												<input
-													type="radio"
-													name="posture"
-													value="Kinetisense"
-													checked={formData.posture === 'Kinetisense'}
-													onChange={e => handleFieldChange('posture', e.target.value)}
-													className="text-sky-600"
-												/>
-												<span className="text-sm text-slate-800">Kinetisense</span>
-											</label>
-										</div>
-										{formData.posture === 'Manual' && (
-											<textarea
-												className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-												rows={2}
-												placeholder="Add manual posture notes"
-												value={formData.postureManualNotes || ''}
-												onChange={e => handleFieldChange('postureManualNotes', e.target.value)}
-											/>
-										)}
-										{formData.posture === 'Kinetisense' && (
-											<div className="mt-2 space-y-2">
-												<input
-													type="file"
-													accept=".pdf,.jpg,.jpeg,.png"
-													onChange={e => handleFileUpload('postureFileData', 'postureFileName', e.target.files?.[0] || null)}
-													className="block w-full text-xs text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-sky-50 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-sky-700 hover:file:bg-sky-100"
-												/>
-												{formData.postureFileName && (
-													<div className="flex items-center gap-2">
-														<span className="text-xs text-slate-600">{formData.postureFileName}</span>
-														<button
-															type="button"
-															onClick={() => {
-																if (formData.postureFileData) {
-																	const viewWindow = window.open();
-																	if (viewWindow) {
-																		viewWindow.document.write(`
-																			<html>
-																				<head>
-																					<title>${formData.postureFileName}</title>
-																					<style>
-																						body { margin: 0; padding: 0; }
-																						iframe { width: 100%; height: 100vh; border: none; }
-																					</style>
-																				</head>
-																				<body>
-																					<iframe src="${formData.postureFileData}"></iframe>
-																				</body>
-																			</html>
-																		`);
-																		viewWindow.document.close();
-																	}
-																}
-															}}
-															className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-200"
-														>
-															<i className="fas fa-eye" />
-															View PDF
-														</button>
-													</div>
-												)}
-											</div>
-										)}
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500 mb-2">GAIT Analysis</label>
-										<div className="flex gap-4">
-											<label className="flex items-center gap-2">
-												<input
-													type="radio"
-													name="gaitAnalysis"
-													value="Manual"
-													checked={formData.gaitAnalysis === 'Manual'}
-													onChange={e => handleFieldChange('gaitAnalysis', e.target.value)}
-													className="text-sky-600"
-												/>
-												<span className="text-sm text-slate-800">Manual</span>
-											</label>
-											<label className="flex items-center gap-2">
-												<input
-													type="radio"
-													name="gaitAnalysis"
-													value="OptaGAIT"
-													checked={formData.gaitAnalysis === 'OptaGAIT'}
-													onChange={e => handleFieldChange('gaitAnalysis', e.target.value)}
-													className="text-sky-600"
-												/>
-												<span className="text-sm text-slate-800">OptaGAIT</span>
-											</label>
-										</div>
-										{formData.gaitAnalysis === 'Manual' && (
-											<textarea
-												className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-												rows={2}
-												placeholder="Manual GAIT analysis notes"
-												value={formData.gaitManualNotes || ''}
-												onChange={e => handleFieldChange('gaitManualNotes', e.target.value)}
-											/>
-										)}
-										{formData.gaitAnalysis === 'OptaGAIT' && (
-											<div className="mt-2 space-y-2">
-												<input
-													type="file"
-													accept=".pdf,.jpg,.jpeg,.png"
-													onChange={e => handleFileUpload('gaitFileData', 'gaitFileName', e.target.files?.[0] || null)}
-													className="block w-full text-xs text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-sky-50 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-sky-700 hover:file:bg-sky-100"
-												/>
-												{formData.gaitFileName && (
-													<div className="flex items-center gap-2">
-														<span className="text-xs text-slate-600">{formData.gaitFileName}</span>
-														<button
-															type="button"
-															onClick={() => {
-																if (formData.gaitFileData) {
-																	const viewWindow = window.open();
-																	if (viewWindow) {
-																		viewWindow.document.write(`
-																			<html>
-																				<head>
-																					<title>${formData.gaitFileName}</title>
-																					<style>
-																						body { margin: 0; padding: 0; }
-																						iframe { width: 100%; height: 100vh; border: none; }
-																					</style>
-																				</head>
-																				<body>
-																					<iframe src="${formData.gaitFileData}"></iframe>
-																				</body>
-																			</html>
-																		`);
-																		viewWindow.document.close();
-																	}
-																}
-															}}
-															className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-200"
-														>
-															<i className="fas fa-eye" />
-															View PDF
-														</button>
-													</div>
-												)}
-											</div>
-										)}
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Mobility Aids</label>
-										<input
-											type="text"
-											value={formData.mobilityAids || ''}
-											onChange={e => handleFieldChange('mobilityAids', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Local Observation</label>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Relevant History</label>
 										<textarea
-											value={formData.localObservation || ''}
-											onChange={e => handleFieldChange('localObservation', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={2}
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Swelling</label>
-										<input
-											type="text"
-											value={formData.swelling || ''}
-											onChange={e => handleFieldChange('swelling', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Muscle Wasting</label>
-										<input
-											type="text"
-											value={formData.muscleWasting || ''}
-											onChange={e => handleFieldChange('muscleWasting', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											value={formData.relevantHistory || ''}
+											onChange={e => handleFieldChange('relevantHistory', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											rows={4}
+											placeholder="Enter any other relevant history"
 										/>
 									</div>
 								</div>
 							</div>
 
-							{/* On Palpation Section */}
+							{/* 4. Objective Assessment - Observation */}
 							<div className="mb-8">
-								<h3 className="mb-4 text-lg font-semibold text-sky-600 border-b border-sky-200 pb-2">On Palpation</h3>
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">4. Objective Assessment - Observation</h3>
+								
+								{/* Local Observation (Area of Pain) */}
+								<div className="mb-4">
+									<label className="block text-xs font-medium text-slate-500 mb-2">Local Observation (Area of Pain)</label>
+									<p className="text-xs text-slate-500 mb-2">Please enter details below</p>
+									<div className="space-y-2">
+										<input
+											type="text"
+											value={formData.localObservation1 || ''}
+											onChange={e => handleFieldChange('localObservation1', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Local observation detail 1"
+										/>
+										<input
+											type="text"
+											value={formData.localObservation2 || ''}
+											onChange={e => handleFieldChange('localObservation2', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Local observation detail 2"
+										/>
+										<input
+											type="text"
+											value={formData.localObservation3 || ''}
+											onChange={e => handleFieldChange('localObservation3', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Local observation detail 3"
+										/>
+										<input
+											type="text"
+											value={formData.localObservation4 || ''}
+											onChange={e => handleFieldChange('localObservation4', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Local observation detail 4"
+										/>
+									</div>
+								</div>
+
+								{/* Systemic Observation */}
 								<div className="grid gap-4 sm:grid-cols-2">
 									<div>
-										<label className="block text-xs font-medium text-slate-500">Tenderness</label>
+										<label className="block text-xs font-medium text-slate-500 mb-1">Posture</label>
 										<input
 											type="text"
-											value={formData.tenderness || ''}
-											onChange={e => handleFieldChange('tenderness', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											value={formData.posture || ''}
+											onChange={e => handleFieldChange('posture', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Enter posture observation"
 										/>
 									</div>
 									<div>
-										<label className="block text-xs font-medium text-slate-500">Warmth</label>
+										<label className="block text-xs font-medium text-slate-500 mb-1">Gait</label>
 										<input
 											type="text"
-											value={formData.warmth || ''}
-											onChange={e => handleFieldChange('warmth', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Scar</label>
-										<input
-											type="text"
-											value={formData.scar || ''}
-											onChange={e => handleFieldChange('scar', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Crepitus</label>
-										<input
-											type="text"
-											value={formData.crepitus || ''}
-											onChange={e => handleFieldChange('crepitus', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-										/>
-									</div>
-									<div>
-										<label className="block text-xs font-medium text-slate-500">Odema</label>
-										<input
-											type="text"
-											value={formData.odema || ''}
-											onChange={e => handleFieldChange('odema', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											value={formData.gait || formData.gaitAnalysis || ''}
+											onChange={e => handleFieldChange('gait', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Enter gait observation"
 										/>
 									</div>
 								</div>
 							</div>
 
-							{/* On Examination Section - ROM Assessment */}
+							{/* 5. Objective Assessment - Palpation */}
 							<div className="mb-8">
-								<h3 className="mb-4 text-lg font-semibold text-sky-600 border-b border-sky-200 pb-2">On Examination</h3>
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">5. Objective Assessment - Palpation</h3>
+								<div className="space-y-4">
+									<div>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Tenderness</label>
+										<input
+											type="text"
+											value={formData.tenderness1 || formData.tenderness || ''}
+											onChange={e => handleFieldChange('tenderness1', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 mb-2"
+											placeholder="Tenderness detail 1"
+										/>
+										<input
+											type="text"
+											value={formData.tenderness2 || ''}
+											onChange={e => handleFieldChange('tenderness2', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Tenderness detail 2"
+										/>
+									</div>
+									<div className="grid gap-4 sm:grid-cols-2">
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-1">Temperature</label>
+											<input
+												type="text"
+												value={formData.temperature || formData.warmth || ''}
+												onChange={e => handleFieldChange('temperature', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+												placeholder="e.g., Normal, Elevated"
+											/>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-1">ADIMA / Edema</label>
+											<input
+												type="text"
+												value={formData.adimaEdema || formData.odema || ''}
+												onChange={e => handleFieldChange('adimaEdema', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+												placeholder="Enter ADIMA/Edema details"
+											/>
+										</div>
+										<div className="sm:col-span-2">
+											<label className="block text-xs font-medium text-slate-500 mb-1">Other Signs of Inflammation</label>
+											<input
+												type="text"
+												value={formData.otherSignsOfInflammation || ''}
+												onChange={e => handleFieldChange('otherSignsOfInflammation', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+												placeholder="Enter other signs of inflammation"
+											/>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							{/* 6. On Examination */}
+							<div className="mb-8">
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">6. On Examination</h3>
 								<div className="mb-4">
 									<h4 className="mb-3 text-sm font-semibold text-slate-700">i) Range of Motion Assessment</h4>
 									<div className="mb-4 flex items-center gap-3">
@@ -4085,10 +3798,47 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										</p>
 									)}
 								</div>
-								<div className="mt-8 grid gap-4">
+								<div className="mt-8 space-y-4">
+									<div>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Joint Play Movement</label>
+										<input
+											type="text"
+											value={formData.jointPlayMovement || ''}
+											onChange={e => handleFieldChange('jointPlayMovement', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Enter joint play movement details"
+										/>
+									</div>
+									<div>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Accessory Joint Movement</label>
+										<input
+											type="text"
+											value={formData.accessoryJointMovement || ''}
+											onChange={e => handleFieldChange('accessoryJointMovement', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Enter accessory joint movement details"
+										/>
+									</div>
+									<div>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Additional Notes</label>
+										<input
+											type="text"
+											value={formData.examinationAdditionalNotes || ''}
+											onChange={e => handleFieldChange('examinationAdditionalNotes', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											placeholder="Enter any additional examination notes"
+										/>
+									</div>
+								</div>
+							</div>
+
+							{/* 7. Diagnosis & Investigation */}
+							<div className="mb-8">
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">7. Diagnosis & Investigation</h3>
+								<div className="space-y-4">
 									<div>
 										<div className="flex items-center justify-between mb-2">
-											<h4 className="text-sm font-semibold text-slate-700">iii) Special Tests</h4>
+											<label className="block text-xs font-medium text-slate-500">Special Tests</label>
 											<SpecialTestsLibrarySelector
 												onSelectTests={(tests) => {
 													const currentValue = formData.specialTest || '';
@@ -4106,53 +3856,332 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										/>
 									</div>
 									<div>
-										<h4 className="mb-2 text-sm font-semibold text-slate-700">iv) Differential Diagnosis</h4>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Differential Diagnosis</label>
 										<textarea
 											value={formData.differentialDiagnosis || formData.clinicalDiagnosis || ''}
 											onChange={e => handleFieldChange('differentialDiagnosis', e.target.value)}
 											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-											placeholder="Differential diagnosis"
+											rows={4}
+											placeholder="Enter differential diagnosis"
 										/>
 									</div>
 									<div>
-										<h4 className="mb-2 text-sm font-semibold text-slate-700">v) Diagnosis</h4>
-										<textarea
-											value={formData.finalDiagnosis || ''}
-											onChange={e => handleFieldChange('finalDiagnosis', e.target.value)}
-											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-											placeholder="Final working diagnosis"
-										/>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Investigations</label>
+										<p className="text-xs text-slate-500 mb-2">Check available reports:</p>
+										<div className="grid gap-2 sm:grid-cols-2 mb-4">
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.investigationXray || formData.med_xray || false}
+													onChange={e => handleCheckboxChange('investigationXray', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												X-ray
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.investigationMRI || formData.med_mri || false}
+													onChange={e => handleCheckboxChange('investigationMRI', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												MRI
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.investigationCTScan || formData.med_ct || false}
+													onChange={e => handleCheckboxChange('investigationCTScan', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												CT-Scan
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.investigationBlood || false}
+													onChange={e => handleCheckboxChange('investigationBlood', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Blood Investigation
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.investigationOthers || false}
+													onChange={e => handleCheckboxChange('investigationOthers', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Others
+											</label>
+										</div>
+										<div className="mb-4">
+											<label className="block text-xs font-medium text-slate-500 mb-2">Upload Image</label>
+											<input
+												type="file"
+												accept="image/*,.pdf"
+												onChange={e => {
+													const file = e.target.files?.[0];
+													if (file) {
+														const reader = new FileReader();
+														reader.onloadend = () => {
+															handleFieldChange('investigationImage', reader.result as string);
+															handleFieldChange('investigationImageName', file.name);
+														};
+														reader.readAsDataURL(file);
+													}
+												}}
+												className="block w-full text-xs text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-sky-50 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-sky-700 hover:file:bg-sky-100"
+											/>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-2">Assessment of Investigation</label>
+											<textarea
+												value={formData.assessmentOfInvestigation || ''}
+												onChange={e => handleFieldChange('assessmentOfInvestigation', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+												rows={4}
+												placeholder="Enter assessment of investigation"
+											/>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-slate-500 mb-2">Final Diagnosis</label>
+											<input
+												type="text"
+												value={formData.finalDiagnosis || ''}
+												onChange={e => handleFieldChange('finalDiagnosis', e.target.value)}
+												className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+												placeholder="Enter final diagnosis"
+											/>
+										</div>
 									</div>
 								</div>
 							</div>
 
-							{/* Physiotherapy Management */}
-							<div className="mb-10">
-								<h3 className="mb-4 text-lg font-semibold text-sky-600 border-b border-sky-200 pb-2">Physiotherapy Management</h3>
-								<div className="space-y-4">
+							{/* 8. Physiotherapy Management */}
+							<div className="mb-8">
+								<h3 className="mb-4 text-sm font-semibold text-sky-600">8. Physiotherapy Management</h3>
+								<div className="space-y-6">
+									{/* Patient Education */}
 									<div>
-										<label className="block text-xs font-medium text-slate-500">i) Short Term Goals</label>
-										<textarea
-											value={formData.shortTermGoals || ''}
-											onChange={e => handleFieldChange('shortTermGoals', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-										/>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Patient Education (Select all that apply)</label>
+										<div className="space-y-2">
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.patientEducationCondition || false}
+													onChange={e => handleCheckboxChange('patientEducationCondition', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Explained the condition in detail
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.patientEducationGoals || false}
+													onChange={e => handleCheckboxChange('patientEducationGoals', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Explained the outcome of short-term and long-term goals
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.patientEducationAdvantages || false}
+													onChange={e => handleCheckboxChange('patientEducationAdvantages', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Explained the advantages and complications of the condition
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.patientEducationOthers || false}
+													onChange={e => handleCheckboxChange('patientEducationOthers', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Others: 
+												<input
+													type="text"
+													value={formData.patientEducationOthersText || ''}
+													onChange={e => handleFieldChange('patientEducationOthersText', e.target.value)}
+													className="ml-2 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+													placeholder="Specify other education"
+													disabled={!formData.patientEducationOthers}
+												/>
+											</label>
+										</div>
 									</div>
+
+									{/* Short Term Goals */}
 									<div>
-										<label className="block text-xs font-medium text-slate-500">ii) Long Term Goals</label>
-										<textarea
-											value={formData.longTermGoals || ''}
-											onChange={e => handleFieldChange('longTermGoals', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
-										/>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Short Term Goals (Select all that apply)</label>
+										<div className="space-y-2">
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.shortTermGoalReducePain || false}
+													onChange={e => handleCheckboxChange('shortTermGoalReducePain', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Reduce pain
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.shortTermGoalImproveROM || false}
+													onChange={e => handleCheckboxChange('shortTermGoalImproveROM', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Improve ROM
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.shortTermGoalImproveStrength || false}
+													onChange={e => handleCheckboxChange('shortTermGoalImproveStrength', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Improve & Maintain Strength
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.shortTermGoalOthers || false}
+													onChange={e => handleCheckboxChange('shortTermGoalOthers', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Others: 
+												<input
+													type="text"
+													value={formData.shortTermGoalOthersText || ''}
+													onChange={e => handleFieldChange('shortTermGoalOthersText', e.target.value)}
+													className="ml-2 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+													placeholder="Specify other short-term goals"
+													disabled={!formData.shortTermGoalOthers}
+												/>
+											</label>
+										</div>
 									</div>
+
+									{/* Treatment Given */}
+									<div>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Treatment Given (Select all that apply)</label>
+										<div className="grid gap-2 sm:grid-cols-2">
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentCryotherapy || false}
+													onChange={e => handleCheckboxChange('treatmentCryotherapy', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Cryotherapy
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentIFT || false}
+													onChange={e => handleCheckboxChange('treatmentIFT', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												IFT (Interferential Therapy)
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentTENS || false}
+													onChange={e => handleCheckboxChange('treatmentTENS', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												TENS
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentLaser || false}
+													onChange={e => handleCheckboxChange('treatmentLaser', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Laser
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentSWT || false}
+													onChange={e => handleCheckboxChange('treatmentSWT', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												SWT (Shockwave Therapy)
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentHotTherapy || false}
+													onChange={e => handleCheckboxChange('treatmentHotTherapy', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Hot Therapy
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentManualTherapy || false}
+													onChange={e => handleCheckboxChange('treatmentManualTherapy', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Manual Therapy
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentSoftTissueManipulation || false}
+													onChange={e => handleCheckboxChange('treatmentSoftTissueManipulation', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Soft Tissue Manipulation
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentDryNeedling || false}
+													onChange={e => handleCheckboxChange('treatmentDryNeedling', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Dry Needling
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentCuppingTherapy || false}
+													onChange={e => handleCheckboxChange('treatmentCuppingTherapy', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Cupping Therapy
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.treatmentOthers || false}
+													onChange={e => handleCheckboxChange('treatmentOthers', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Others: 
+												<input
+													type="text"
+													value={formData.treatmentOthersText || ''}
+													onChange={e => handleFieldChange('treatmentOthersText', e.target.value)}
+													className="ml-2 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+													placeholder="Specify other treatment"
+													disabled={!formData.treatmentOthers}
+												/>
+											</label>
+										</div>
+									</div>
+
+									{/* Treatment (keep as is) */}
 									<div>
 										<div className="flex items-center justify-between mb-2">
-											<label className="block text-xs font-medium text-slate-500">iii) Treatment</label>
+											<label className="block text-xs font-medium text-slate-500">Treatment</label>
 											<ExerciseLibrarySelector
 												onSelectExercises={(exercises) => {
 													const currentValue = formData.treatment || '';
@@ -4165,22 +4194,95 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										<textarea
 											value={formData.treatment || formData.treatmentProvided || ''}
 											onChange={e => handleFieldChange('treatment', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
 											rows={6}
 											placeholder="Enter treatment or use Exercise Library to select exercises..."
 										/>
 									</div>
+
+									{/* Long Term Goals */}
 									<div>
-										<label className="block text-xs font-medium text-slate-500">iv) Advice</label>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Long Term Goals (Select all that apply)</label>
+										<div className="space-y-2">
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.longTermGoalReducePain || false}
+													onChange={e => handleCheckboxChange('longTermGoalReducePain', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Reduce pain & Maintain pain-free movement
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.longTermGoalImproveROM || false}
+													onChange={e => handleCheckboxChange('longTermGoalImproveROM', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Improve & Maintain ROM
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.longTermGoalImproveStrength || false}
+													onChange={e => handleCheckboxChange('longTermGoalImproveStrength', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Improve & Maintain Strength
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.longTermGoalImproveStability || false}
+													onChange={e => handleCheckboxChange('longTermGoalImproveStability', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Improve stability
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.longTermGoalRTP || false}
+													onChange={e => handleCheckboxChange('longTermGoalRTP', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												RTP (Return to Play) plan
+											</label>
+											<label className="flex items-center gap-2 text-sm text-slate-700">
+												<input
+													type="checkbox"
+													checked={formData.longTermGoalOthers || false}
+													onChange={e => handleCheckboxChange('longTermGoalOthers', e.target.checked)}
+													className="rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+												/>
+												Others: 
+												<input
+													type="text"
+													value={formData.longTermGoalOthersText || ''}
+													onChange={e => handleFieldChange('longTermGoalOthersText', e.target.value)}
+													className="ml-2 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+													placeholder="Specify other long-term goals"
+													disabled={!formData.longTermGoalOthers}
+												/>
+											</label>
+										</div>
+									</div>
+
+									{/* Home Advice */}
+									<div>
+										<label className="block text-xs font-medium text-slate-500 mb-2">Home Advice</label>
 										<textarea
-											value={formData.advice || ''}
-											onChange={e => handleFieldChange('advice', e.target.value)}
-											className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-											rows={3}
+											value={formData.advice || formData.homeAdvice || ''}
+											onChange={e => handleFieldChange('homeAdvice', e.target.value)}
+											className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+											rows={4}
+											placeholder="Enter home advice"
 										/>
 									</div>
 								</div>
 							</div>
+
 
 
 							{/* Signature Section */}
