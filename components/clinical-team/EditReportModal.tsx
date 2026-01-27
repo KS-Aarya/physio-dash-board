@@ -491,10 +491,12 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 	const [clinicalTeamMembers, setClinicalTeamMembers] = useState<Array<{ id: string; userName: string; userEmail?: string }>>([]);
 	const [loadingReport, setLoadingReport] = useState(false);
 	const [loadingStrengthConditioning, setLoadingStrengthConditioning] = useState(false);
+	const [loadingPsychology, setLoadingPsychology] = useState(false);
 	const [savingStrengthConditioning, setSavingStrengthConditioning] = useState(false);
 	const [savedStrengthConditioningMessage, setSavedStrengthConditioningMessage] = useState(false);
 	const [savingPsychology, setSavingPsychology] = useState(false);
 	const [savedPsychologyMessage, setSavedPsychologyMessage] = useState(false);
+	const psychologyUnsubscribeRef = useRef<(() => void) | null>(null);
 	const [uploadingPdf, setUploadingPdf] = useState(false);
 	const [uploadedPdfUrl, setUploadedPdfUrl] = useState<string | null>(null);
 	const strengthConditioningUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -686,6 +688,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 			if (!isOpen) {
 				setReportPatientData(null);
 				setStrengthConditioningData(null);
+				setPsychologyData(null);
 				setViewingVersionData(null);
 				setActiveReportTab(initialTab);
 				setIsSubsequentDatePhysio(false);
@@ -694,9 +697,16 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 				setSessionNumber(null);
 				setFirstReportDate(null);
 				setIsEditingSession1(false);
+				setLoadingReport(false);
+				setLoadingStrengthConditioning(false);
+				setLoadingPsychology(false);
 				if (strengthConditioningUnsubscribeRef.current) {
 					strengthConditioningUnsubscribeRef.current();
 					strengthConditioningUnsubscribeRef.current = null;
+				}
+				if (psychologyUnsubscribeRef.current) {
+					psychologyUnsubscribeRef.current();
+					psychologyUnsubscribeRef.current = null;
 				}
 				if (patientUnsubscribeRef.current) {
 					patientUnsubscribeRef.current();
@@ -716,73 +726,88 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 		const loadData = async () => {
 			setLoadingReport(true);
 			setLoadingStrengthConditioning(true);
+			setLoadingPsychology(true);
 			setReportPatientData(null);
 			setStrengthConditioningData(null);
+			setPsychologyData(null);
 			setFormData({});
 
-			// Load regular report data with real-time listener
+			// Get patient document ID first (single query)
+			let patientDocId: string | null = null;
+			let documentId: string | null = null;
+			
 			try {
 				const patientSnap = await getDocs(query(collection(db, 'patients'), where('patientId', '==', patientId)));
 				if (!patientSnap.empty) {
 					const patientDoc = patientSnap.docs[0];
-					const patientDocId = patientDoc.id;
+					patientDocId = patientDoc.id;
+					documentId = patientDocId || patientId;
 					setPatientDocId(patientDocId);
 					
 					// Set up real-time listener for patient document
 					const patientRef = doc(db, 'patients', patientDocId);
+					
+					// Set initial patient data from the snapshot we already have
+					const initialPatientData = patientDoc.data() as PatientRecordFull;
+					setReportPatientData(initialPatientData);
+					setLoadingReport(false);
+					
 					const unsubscribePatient = onSnapshot(patientRef, (docSnap) => {
-						if (docSnap.exists()) {
-							const patientData = docSnap.data() as PatientRecordFull;
-							
-							// Only update if user is not actively editing (formData is empty or matches current data)
-							// This prevents overwriting user's unsaved changes
-							const isUserEditing = Object.keys(formData).length > 0 && 
-								JSON.stringify(formData) !== JSON.stringify(reportPatientData);
-							
-							if (!isUserEditing || !editable) {
-								setReportPatientData(patientData);
+						try {
+							if (docSnap.exists()) {
+								const patientData = docSnap.data() as PatientRecordFull;
 								
-								// Check if it's a subsequent date for Physiotherapy report
-								if (patientData.dateOfConsultation) {
-									setIsSubsequentDatePhysio(isDateOnDifferentDay(patientData.dateOfConsultation));
-								} else if (patientData.updatedAt) {
-									const updatedDate = (patientData.updatedAt as any)?.toDate ? (patientData.updatedAt as any).toDate() : new Date(patientData.updatedAt);
-									if (!isNaN(updatedDate.getTime())) {
-										setIsSubsequentDatePhysio(isDateOnDifferentDay(updatedDate));
+								// Only update if user is not actively editing (formData is empty or matches current data)
+								// This prevents overwriting user's unsaved changes
+								const isUserEditing = Object.keys(formData).length > 0 && 
+									JSON.stringify(formData) !== JSON.stringify(reportPatientData);
+								
+								if (!isUserEditing || !editable) {
+									setReportPatientData(patientData);
+									
+									// Check if it's a subsequent date for Physiotherapy report
+									if (patientData.dateOfConsultation) {
+										setIsSubsequentDatePhysio(isDateOnDifferentDay(patientData.dateOfConsultation));
+									} else if (patientData.updatedAt) {
+										const updatedDate = (patientData.updatedAt as any)?.toDate ? (patientData.updatedAt as any).toDate() : new Date(patientData.updatedAt);
+										if (!isNaN(updatedDate.getTime())) {
+											setIsSubsequentDatePhysio(isDateOnDifferentDay(updatedDate));
+										} else {
+											setIsSubsequentDatePhysio(false);
+										}
 									} else {
 										setIsSubsequentDatePhysio(false);
 									}
-								} else {
-									setIsSubsequentDatePhysio(false);
-								}
-								
-								// Initialize formData with patient data if editable and form is empty
-								if (editable && Object.keys(formData).length === 0) {
-									const adjustedData = applyCurrentSessionAdjustments(patientData);
-									if (!adjustedData.dateOfConsultation) {
-										adjustedData.dateOfConsultation = new Date().toISOString().split('T')[0];
+									
+									// Initialize formData with patient data if editable and form is empty
+									if (editable && Object.keys(formData).length === 0) {
+										const adjustedData = applyCurrentSessionAdjustments(patientData);
+										if (!adjustedData.dateOfConsultation) {
+											adjustedData.dateOfConsultation = new Date().toISOString().split('T')[0];
+										}
+										if (!adjustedData.physioName && clinicalTeamMembers.length > 0) {
+											const currentUserStaff = clinicalTeamMembers.find(m => m.userEmail === user?.email);
+											adjustedData.physioName = currentUserStaff?.userName || user?.displayName || user?.email || '';
+										}
+										setFormData(adjustedData);
+										setIsPhysioNameEditable(false);
 									}
-									if (!adjustedData.physioName && clinicalTeamMembers.length > 0) {
-										const currentUserStaff = clinicalTeamMembers.find(m => m.userEmail === user?.email);
-										adjustedData.physioName = currentUserStaff?.userName || user?.displayName || user?.email || '';
-									}
-									setFormData(adjustedData);
-									setIsPhysioNameEditable(false);
 								}
+							} else {
+								setReportPatientData(null);
 							}
-						} else {
-							setReportPatientData(null);
+						} catch (err) {
+							console.error('Error processing patient data:', err);
 						}
-						setLoadingReport(false);
 					}, (error) => {
 						console.error('Error loading patient report:', error);
+						setReportPatientData(null);
 						setLoadingReport(false);
 					});
 					
 					patientUnsubscribeRef.current = unsubscribePatient;
 					
-					// Load session info
-					const initialPatientData = patientDoc.data() as PatientRecordFull;
+					// Load session info (use the data we already have)
 					if (initialPatientData.patientId) {
 						const sessionInfo = await getSessionInfo(initialPatientData.patientId);
 						setSessionNumber(sessionInfo.sessionNumber);
@@ -901,120 +926,125 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 							} as HeaderConfig);
 						}
 					}
-				} else {
-					setLoadingReport(false);
-				}
-			} catch (error) {
-				console.error('Failed to load patient report:', error);
-				setLoadingReport(false);
-			}
 
-			// Load strength and conditioning report
-			try {
-				const patientSnap = await getDocs(query(collection(db, 'patients'), where('patientId', '==', patientId)));
-				if (!patientSnap.empty) {
-					const patientDoc = patientSnap.docs[0];
-					const documentId = patientDoc.id || patientId;
-					
-					const reportRef = doc(db, 'strengthConditioningReports', documentId);
-					const unsubscribe = onSnapshot(reportRef, (docSnap) => {
-						if (docSnap.exists()) {
-							const data = docSnap.data() as StrengthConditioningData;
-							setStrengthConditioningData(data);
-							
-							// Check if it's a subsequent date for Strength & Conditioning report
-							if (data.assessmentDate) {
-								setIsSubsequentDateStrength(isDateOnDifferentDay(data.assessmentDate));
-							} else if ((data as any).updatedAt) {
-								// If no assessment date, check updatedAt
-								const updatedDate = typeof (data as any).updatedAt === 'string' ? new Date((data as any).updatedAt) : ((data as any).updatedAt as any)?.toDate ? ((data as any).updatedAt as any).toDate() : new Date();
-								if (!isNaN(updatedDate.getTime())) {
-									setIsSubsequentDateStrength(isDateOnDifferentDay(updatedDate));
+					// Load strength and conditioning report (using documentId from first query)
+					if (documentId) {
+						const reportRef = doc(db, 'strengthConditioningReports', documentId);
+						const unsubscribe = onSnapshot(reportRef, (docSnap) => {
+							if (docSnap.exists()) {
+								const data = docSnap.data() as StrengthConditioningData;
+								setStrengthConditioningData(data);
+								
+								// Check if it's a subsequent date for Strength & Conditioning report
+								if (data.assessmentDate) {
+									setIsSubsequentDateStrength(isDateOnDifferentDay(data.assessmentDate));
+								} else if ((data as any).updatedAt) {
+									// If no assessment date, check updatedAt
+									const updatedDate = typeof (data as any).updatedAt === 'string' ? new Date((data as any).updatedAt) : ((data as any).updatedAt as any)?.toDate ? ((data as any).updatedAt as any).toDate() : new Date();
+									if (!isNaN(updatedDate.getTime())) {
+										setIsSubsequentDateStrength(isDateOnDifferentDay(updatedDate));
+									} else {
+										setIsSubsequentDateStrength(false);
+									}
 								} else {
 									setIsSubsequentDateStrength(false);
 								}
+								
+								// Initialize formData with strength conditioning data if editable
+								if (editable) {
+									const formDataWithDate = { ...data };
+									// Set assessmentDate to today's date if it's not already set
+									if (!formDataWithDate.assessmentDate) {
+										formDataWithDate.assessmentDate = new Date().toISOString().split('T')[0];
+									}
+									setStrengthConditioningFormData(formDataWithDate);
+									// Set uploaded PDF URL if it exists
+									if (data.uploadedPdfUrl) {
+										setUploadedPdfUrl(data.uploadedPdfUrl);
+									}
+								}
 							} else {
+								setStrengthConditioningData(null);
 								setIsSubsequentDateStrength(false);
-							}
-							
-							// Initialize formData with strength conditioning data if editable
-							if (editable) {
-								const formDataWithDate = { ...data };
-								// Set assessmentDate to today's date if it's not already set
-								if (!formDataWithDate.assessmentDate) {
-									formDataWithDate.assessmentDate = new Date().toISOString().split('T')[0];
-								}
-								setStrengthConditioningFormData(formDataWithDate);
-								// Set uploaded PDF URL if it exists
-								if (data.uploadedPdfUrl) {
-									setUploadedPdfUrl(data.uploadedPdfUrl);
+								if (editable) {
+									// Set assessmentDate to today's date for new reports
+									setStrengthConditioningFormData({
+										assessmentDate: new Date().toISOString().split('T')[0]
+									});
+									setUploadedPdfUrl(null);
 								}
 							}
-						} else {
+							setLoadingStrengthConditioning(false);
+						}, (error) => {
+							console.error('Error loading strength and conditioning report:', error);
 							setStrengthConditioningData(null);
 							setIsSubsequentDateStrength(false);
-							if (editable) {
-								// Set assessmentDate to today's date for new reports
-								setStrengthConditioningFormData({
-									assessmentDate: new Date().toISOString().split('T')[0]
-								});
-								setUploadedPdfUrl(null);
-							}
-						}
-						setLoadingStrengthConditioning(false);
-					}, (error) => {
-						console.error('Error loading strength and conditioning report:', error);
-						setStrengthConditioningData(null);
-						setIsSubsequentDateStrength(false);
-						setLoadingStrengthConditioning(false);
-					});
-					
-					strengthConditioningUnsubscribeRef.current = unsubscribe;
-				}
-			} catch (error) {
-				console.error('Failed to load strength and conditioning report', error);
-				setStrengthConditioningData(null);
-				setLoadingStrengthConditioning(false);
-			}
-		};
-
-		loadData();
-
-		// Load psychology data if psychology tab is active
-		if (isOpen && patientId && activeReportTab === 'psychology') {
-			const loadPsychologyData = async () => {
-				try {
-					const patientSnap = await getDocs(query(collection(db, 'patients'), where('patientId', '==', patientId)));
-					if (!patientSnap.empty) {
-						const patientDoc = patientSnap.docs[0];
-						const documentId = patientDoc.id || patientId;
+							setLoadingStrengthConditioning(false);
+						});
 						
-						const psychologyRef = doc(db, 'psychologyReports', documentId);
-						const unsubscribe = onSnapshot(psychologyRef, (docSnap) => {
-							if (docSnap.exists()) {
-								const data = docSnap.data();
-								setPsychologyData(data);
-								if (editable) {
-									setPsychologyFormData(data);
+						strengthConditioningUnsubscribeRef.current = unsubscribe;
+					} else {
+						setLoadingStrengthConditioning(false);
+					}
+
+					// Load psychology data (always load, not just when tab is active)
+					if (documentId) {
+						try {
+							const psychologyRef = doc(db, 'psychologyReports', documentId);
+							const unsubscribe = onSnapshot(psychologyRef, (docSnap) => {
+								try {
+									if (docSnap.exists()) {
+										const data = docSnap.data();
+										setPsychologyData(data);
+										if (editable) {
+											setPsychologyFormData(data);
+										}
+									} else {
+										setPsychologyData(null);
+										if (editable) {
+											setPsychologyFormData({});
+										}
+									}
+								} catch (err) {
+									console.error('Error processing psychology report data:', err);
+								} finally {
+									setLoadingPsychology(false);
 								}
-							} else {
+							}, (error) => {
+								console.error('Error loading psychology report:', error);
 								setPsychologyData(null);
 								if (editable) {
 									setPsychologyFormData({});
 								}
-							}
-						}, (error) => {
-							console.error('Error loading psychology report:', error);
+								setLoadingPsychology(false);
+							});
+							
+							psychologyUnsubscribeRef.current = unsubscribe;
+						} catch (err) {
+							console.error('Failed to set up psychology report listener:', err);
 							setPsychologyData(null);
-						});
+							if (editable) {
+								setPsychologyFormData({});
+							}
+							setLoadingPsychology(false);
+						}
+					} else {
+						setLoadingPsychology(false);
 					}
-				} catch (error) {
-					console.error('Failed to load psychology report', error);
-					setPsychologyData(null);
+				} else {
+					setLoadingReport(false);
+					setLoadingStrengthConditioning(false);
+					setLoadingPsychology(false);
 				}
-			};
-			loadPsychologyData();
-		}
+			} catch (error) {
+				console.error('Failed to load patient report:', error);
+				setLoadingReport(false);
+				setLoadingStrengthConditioning(false);
+				setLoadingPsychology(false);
+			}
+		};
+
+		loadData();
 	}, [isOpen, patientId, activeReportTab]);
 
 	// Load clinical team members
@@ -5718,10 +5748,15 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 						</div>
 					) : activeReportTab === 'psychology' ? (
 						<div className="space-y-6">
-							{loadingReport || !reportPatientData ? (
+							{loadingPsychology ? (
 								<div className="text-center py-12">
 									<div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-slate-900 border-r-transparent"></div>
 									<p className="mt-4 text-sm text-slate-600">Loading psychology data...</p>
+								</div>
+							) : !reportPatientData ? (
+								<div className="text-center py-12">
+									<div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-slate-900 border-r-transparent"></div>
+									<p className="mt-4 text-sm text-slate-600">Loading patient data...</p>
 								</div>
 							) : (
 								<>

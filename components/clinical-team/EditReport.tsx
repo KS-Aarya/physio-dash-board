@@ -3619,7 +3619,7 @@ export default function EditReport() {
 										<i className="fas fa-brain text-indigo-600 text-xl" />
 									</div>
 									<div>
-										<h3 className="font-semibold text-slate-900">Psychology</h3>
+										<h3 className="font-semibold text-slate-900">Brain Training / Sports Psychology</h3>
 										<p className="text-sm text-slate-600">View psychological assessment and evaluation report</p>
 									</div>
 								</button>

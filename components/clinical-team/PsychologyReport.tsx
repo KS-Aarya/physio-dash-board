@@ -224,7 +224,7 @@ export default function PsychologyReport({ patientData, formData, onChange, edit
 	const [localData, setLocalData] = useState<PsychologyReportData>(formData);
 
 	// Determine if this is the first session
-	// Priority: 1) sessionIndex prop, 2) calculate from patient data, 3) default to first session
+	// Priority: 1) sessionIndex prop, 2) check for existing psychology report data, 3) calculate from patient data, 4) default to first session
 	const isFirstSession = useMemo(() => {
 		if (sessionIndex !== undefined) {
 			return sessionIndex === 0;
@@ -232,6 +232,52 @@ export default function PsychologyReport({ patientData, formData, onChange, edit
 		if (totalSessions !== undefined) {
 			return totalSessions === 1;
 		}
+		
+		// Helper function to check if an object has any actual values (not just empty object)
+		const hasActualValues = (obj: any): boolean => {
+			if (!obj || typeof obj !== 'object') return false;
+			return Object.values(obj).some(val => val !== undefined && val !== null && val !== '');
+		};
+		
+		// Helper to safely check string values
+		const hasStringValue = (val: any): boolean => {
+			return val && typeof val === 'string' && val.trim().length > 0;
+		};
+		
+		// Use formData if it has data, otherwise fall back to localData
+		const dataToCheck = Object.keys(formData).length > 0 ? formData : localData;
+		
+		// Check if there's existing psychology report data with initial assessment sections filled
+		// If any initial assessment data exists, this is NOT the first session (it's a follow-up)
+		// We check for actual assessment data, not just demographics
+		const hasInitialAssessmentData = 
+			hasActualValues(dataToCheck.sensoryStation) ||
+			hasActualValues(dataToCheck.neurofeedbackHeadset) ||
+			hasActualValues(dataToCheck.brainSensing) ||
+			(dataToCheck.trackingSpeed !== undefined && dataToCheck.trackingSpeed !== null) ||
+			(dataToCheck.reactionTime !== undefined && dataToCheck.reactionTime !== null) ||
+			(dataToCheck.handEyeCoordination !== undefined && dataToCheck.handEyeCoordination !== null) ||
+			hasActualValues(dataToCheck.competitiveStateAnxiety) ||
+			hasActualValues(dataToCheck.mentalToughness) ||
+			hasActualValues(dataToCheck.bigFivePersonality) ||
+			hasStringValue(dataToCheck.extraAssessments) ||
+			// Check for player history and concerns which are part of initial assessment
+			hasStringValue(dataToCheck.playingSince) ||
+			hasStringValue(dataToCheck.highestAchievement) ||
+			hasStringValue(dataToCheck.currentLevel) ||
+			(dataToCheck.currentConcerns && Array.isArray(dataToCheck.currentConcerns) && dataToCheck.currentConcerns.length > 0 && dataToCheck.currentConcerns.some((c: string) => hasStringValue(c))) ||
+			hasActualValues(dataToCheck.stressors) ||
+			hasActualValues(dataToCheck.socialEnvironment) ||
+			hasActualValues(dataToCheck.familyHistory) ||
+			hasStringValue(dataToCheck.historyOfConcerns) ||
+			// Check if follow-up assessment data exists (definitely means it's not first session)
+			hasActualValues(dataToCheck.followUpAssessment);
+		
+		// If there's initial assessment data, this is a follow-up session
+		if (hasInitialAssessmentData) {
+			return false;
+		}
+		
 		// Calculate from patient data if available
 		if (patientData) {
 			const remaining = typeof patientData.remainingSessions === 'number' ? patientData.remainingSessions : null;
@@ -247,7 +293,7 @@ export default function PsychologyReport({ patientData, formData, onChange, edit
 		}
 		// Default: assume first session if we can't determine
 		return true;
-	}, [sessionIndex, totalSessions, patientData]);
+	}, [sessionIndex, totalSessions, patientData, formData, localData]);
 
 	useEffect(() => {
 		setLocalData(formData);
@@ -1011,15 +1057,33 @@ export default function PsychologyReport({ patientData, formData, onChange, edit
 										) : (
 											<span className="text-sm text-slate-900 w-20 text-right">{score || '—'}</span>
 										)}
-										{score !== undefined && (
+									</div>
+								</div>
+							);
+						})}
+						{/* Total Score Row */}
+						{(() => {
+							const commitment = localData.mentalToughness?.commitment ?? 0;
+							const concentration = localData.mentalToughness?.concentration ?? 0;
+							const controlUnderPressure = localData.mentalToughness?.controlUnderPressure ?? 0;
+							const confidence = localData.mentalToughness?.confidence ?? 0;
+							const totalScore = commitment + concentration + controlUnderPressure + confidence;
+							const hasAnyScore = commitment !== 0 || concentration !== 0 || controlUnderPressure !== 0 || confidence !== 0;
+							
+							return (
+								<div className="flex items-center justify-between pt-2 border-t border-slate-200">
+									<label className="text-sm font-medium text-slate-700 flex-1">Total score</label>
+									<div className="flex items-center gap-3">
+										<span className="text-sm text-slate-900 w-20 text-right font-semibold">{hasAnyScore ? totalScore : '—'}</span>
+										{hasAnyScore && totalScore !== undefined && (
 											<span className="text-sm font-medium text-indigo-600 w-32">
-												({getMentalToughnessCategory(score)})
+												({getMentalToughnessCategory(totalScore)})
 											</span>
 										)}
 									</div>
 								</div>
 							);
-						})}
+						})()}
 					</div>
 				</div>
 
