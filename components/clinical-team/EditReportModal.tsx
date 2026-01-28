@@ -880,8 +880,12 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 						setFirstReportDate(sessionInfo.firstReportDate);
 						
 						// Determine if we're editing Session 1
-						// If no versions exist, it's Session 1
-						if (!hasPhysioVersions && sessionInfo.sessionNumber === 1) {
+						// If versions exist, this is NOT Session 1 (it's a follow-up)
+						if (hasPhysioVersions) {
+							// Versions exist, so this is a follow-up session
+							setIsEditingSession1(false);
+						} else if (sessionInfo.sessionNumber === 1) {
+							// No versions and session number is 1, so this is Session 1
 							setIsEditingSession1(true);
 							setSessionNumber(1);
 						} else {
@@ -889,8 +893,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 							if (sessionInfo.firstReportDate && currentDate === sessionInfo.firstReportDate) {
 								setIsEditingSession1(true);
 								setSessionNumber(1);
-							} else if (!sessionInfo.firstReportDate && !hasPhysioVersions) {
-								// No reports exist, this is Session 1
+							} else if (!sessionInfo.firstReportDate) {
+								// No first report date and no versions, this is Session 1
 								setIsEditingSession1(true);
 								setSessionNumber(1);
 							} else {
@@ -3822,8 +3826,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 								</div>
 							</div>
 
-							{/* Show Follow-up form only if NOT editing Session 1 AND it's a subsequent date */}
-							{!isEditingSession1 && (isSubsequentDatePhysio || (sessionNumber && sessionNumber > 1)) ? (
+							{/* Show Follow-up form only if NOT editing Session 1 AND (it's a subsequent date OR versions exist) */}
+							{!isEditingSession1 && (hasPhysiotherapyVersions || isSubsequentDatePhysio || (sessionNumber && sessionNumber > 1)) ? (
 								<>
 									{/* Simplified Follow-Up Form for Subsequent Dates */}
 									<div className="mb-8">
@@ -6412,28 +6416,22 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 						</button>
 					)}
 					<div className="flex items-center gap-3">
-						{editable && (reportPatientData || strengthConditioningData || psychologyData) && (
+						{editable && (reportPatientData || strengthConditioningData || psychologyData) && activeReportTab !== 'strength-conditioning' && (
 							<button
 								type="button"
 								onClick={
-									activeReportTab === 'strength-conditioning' 
-										? handleSaveStrengthConditioning 
-										: activeReportTab === 'psychology'
+									activeReportTab === 'psychology'
 										? handleSavePsychology
 										: handleSave
 								}
 								disabled={
-									activeReportTab === 'strength-conditioning' 
-										? savingStrengthConditioning 
-										: activeReportTab === 'psychology'
+									activeReportTab === 'psychology'
 										? savingPsychology
 										: saving
 								}
 								className="inline-flex items-center rounded-lg border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
 							>
-								{(activeReportTab === 'strength-conditioning' 
-									? savingStrengthConditioning 
-									: activeReportTab === 'psychology'
+								{(activeReportTab === 'psychology'
 									? savingPsychology
 									: saving) ? (
 									<>
@@ -6477,45 +6475,15 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 							</>
 						)}
 						{activeReportTab === 'strength-conditioning' && reportPatientData && (
-							<>
-								<button
-									type="button"
-									onClick={handleSaveStrengthConditioning}
-									className="inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 focus-visible:outline-none disabled:opacity-50"
-									disabled={savingStrengthConditioning}
-								>
-									<i className="fas fa-save mr-2" aria-hidden="true" />
-									{savingStrengthConditioning ? 'Saving...' : 'Save Report'}
-								</button>
-								<button
-									type="button"
-									onClick={() => {}}
-									className="inline-flex items-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-									disabled={true}
-									title="Crisp Report not available for Strength and Conditioning reports"
-								>
-									<i className="fas fa-file-alt mr-2" aria-hidden="true" />
-									Crisp Report
-								</button>
-								<button
-									type="button"
-									onClick={handleDownloadStrengthConditioningPDF}
-									className="inline-flex items-center rounded-lg border border-sky-600 px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 focus-visible:outline-none disabled:opacity-50"
-									disabled={!strengthConditioningFormData || Object.keys(strengthConditioningFormData).length === 0}
-								>
-									<i className="fas fa-download mr-2" aria-hidden="true" />
-									Download PDF
-								</button>
-								<button
-									type="button"
-									onClick={() => handlePrintReport()}
-									className="inline-flex items-center rounded-lg border border-sky-600 px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 focus-visible:outline-none disabled:opacity-50"
-									disabled={!strengthConditioningFormData || Object.keys(strengthConditioningFormData).length === 0}
-								>
-									<i className="fas fa-print mr-2" aria-hidden="true" />
-									Print Report
-								</button>
-							</>
+							<button
+								type="button"
+								onClick={handleSaveStrengthConditioning}
+								className="inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 focus-visible:outline-none disabled:opacity-50"
+								disabled={savingStrengthConditioning}
+							>
+								<i className="fas fa-save mr-2" aria-hidden="true" />
+								{savingStrengthConditioning ? 'Saving...' : 'Save Report'}
+							</button>
 						)}
 						<button
 							type="button"
