@@ -496,6 +496,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 	const [savedStrengthConditioningMessage, setSavedStrengthConditioningMessage] = useState(false);
 	const [savingPsychology, setSavingPsychology] = useState(false);
 	const [savedPsychologyMessage, setSavedPsychologyMessage] = useState(false);
+	const [psychologySessionCompleted, setPsychologySessionCompleted] = useState(false);
 	const psychologyUnsubscribeRef = useRef<(() => void) | null>(null);
 	const [uploadingPdf, setUploadingPdf] = useState(false);
 	const [uploadedPdfUrl, setUploadedPdfUrl] = useState<string | null>(null);
@@ -726,6 +727,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 				setViewingPsychologyVersionData(null);
 				setPsychologyFormDataKey(0);
 				setIsEditingLoadedPsychologyVersion(false);
+				setPsychologySessionCompleted(false);
 				setActiveReportTab(initialTab);
 				setIsSubsequentDatePhysio(false);
 				setIsSubsequentDateStrength(false);
@@ -935,6 +937,15 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										};
 									});
 									
+									// Update hasPhysiotherapyVersions based on snapshot
+									const hasVersions = snapshot.docs.length > 0;
+									setHasPhysiotherapyVersions(hasVersions);
+									
+									// Update isEditingSession1 if versions exist
+									if (hasVersions) {
+										setIsEditingSession1(false);
+									}
+									
 									// Only update if version history is currently being viewed
 									if (showVersionHistory && activeReportTab === 'report') {
 										setVersionHistory(versions);
@@ -969,6 +980,15 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 													})
 													.filter(v => v.reportType === 'physiotherapy' || !v.reportType); // Include old records without reportType
 												versions.sort((a, b) => b.version - a.version);
+												
+												// Update hasPhysiotherapyVersions based on filtered versions
+												const hasVersions = versions.length > 0;
+												setHasPhysiotherapyVersions(hasVersions);
+												
+												// Update isEditingSession1 if versions exist
+												if (hasVersions) {
+													setIsEditingSession1(false);
+												}
 												
 												if (showVersionHistory && activeReportTab === 'report') {
 													setVersionHistory(versions);
@@ -2192,7 +2212,58 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 				console.error('Failed to save psychology report version:', versionError);
 				// Don't block the main save operation if version saving fails
 			}
-			
+
+			// Handle session completion if checkbox is checked
+			if (psychologySessionCompleted && reportPatientData) {
+				try {
+					const patientRef = doc(db, 'patients', documentIdToUse);
+					const totalSessionsValue =
+						typeof reportPatientData.totalSessionsRequired === 'number'
+							? reportPatientData.totalSessionsRequired
+							: null;
+
+					const baseRemaining =
+						typeof reportPatientData.remainingSessions === 'number'
+							? reportPatientData.remainingSessions
+							: totalSessionsValue !== null
+								? totalSessionsValue
+								: null;
+
+					if (baseRemaining !== null && baseRemaining > 0) {
+						const newRemainingSessions = Math.max(0, baseRemaining - 1);
+
+						await updateDoc(patientRef, {
+							remainingSessions: newRemainingSessions,
+							updatedAt: serverTimestamp(),
+						});
+
+						setReportPatientData((prev: any) => prev ? { ...prev, remainingSessions: newRemainingSessions } : null);
+
+						const patientForProgress: PatientRecordFull = {
+							...reportPatientData,
+							id: documentIdToUse,
+							totalSessionsRequired: totalSessionsValue ?? reportPatientData.totalSessionsRequired,
+							remainingSessions: newRemainingSessions,
+						};
+
+						const consultationDate = psychologyFormData.dateOfAssessment || reportPatientData.dateOfConsultation || new Date().toISOString().split('T')[0];
+						await markAppointmentCompletedForReport(patientForProgress, consultationDate, false);
+
+						const sessionProgress = await refreshPatientSessionProgress(
+							patientForProgress,
+							totalSessionsValue ?? null
+						);
+
+						if (sessionProgress) {
+							setReportPatientData((prev: any) => (prev ? { ...prev, ...sessionProgress } : null));
+						}
+					}
+				} catch (sessionError) {
+					console.error('Failed to handle session completion for psychology report', sessionError);
+				}
+			}
+
+			setPsychologySessionCompleted(false);
 			setSavedPsychologyMessage(true);
 			setTimeout(() => setSavedPsychologyMessage(false), 3000);
 			setIsEditingLoadedPsychologyVersion(false); // After save, no longer "editing loaded version"
@@ -3481,21 +3552,34 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 				const firstDate = new Date(firstReportDate).toISOString().split('T')[0];
 				
 				if (selectedDate === firstDate) {
-					// Switch to Session 1 edit mode
-					setIsEditingSession1(true);
-					setSessionNumber(1);
+					// Switch to Session 1 edit mode only if no versions exist
+					// If versions exist, this is still a follow-up session
+					if (!hasPhysiotherapyVersions) {
+						setIsEditingSession1(true);
+						setSessionNumber(1);
+					} else {
+						setIsEditingSession1(false);
+					}
 					// Load the first report data if available
 					if (reportPatientData && reportPatientData.dateOfConsultation === firstDate) {
 						// Already have the data, just switch mode
 					}
 				} else {
 					// Not Session 1, use calculated session number
-					setIsEditingSession1(false);
+					// If versions exist, this is a follow-up
+					if (hasPhysiotherapyVersions) {
+						setIsEditingSession1(false);
+					}
 				}
 			} else if (!firstReportDate) {
-				// No first report exists yet, this will be Session 1
-				setIsEditingSession1(true);
-				setSessionNumber(1);
+				// No first report exists yet
+				// If versions exist, this is a follow-up, otherwise it's Session 1
+				if (hasPhysiotherapyVersions) {
+					setIsEditingSession1(false);
+				} else {
+					setIsEditingSession1(true);
+					setSessionNumber(1);
+				}
 			}
 		}
 	};
@@ -3800,13 +3884,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 
 							{/* Date of Consultation - Always visible */}
 							<div className="mb-8 border-b border-slate-200 pb-4">
-								<div className="flex items-center justify-between mb-4">
+								<div className="mb-4">
 									<h3 className="text-sm font-semibold text-sky-600">Report Date</h3>
-									{sessionNumber && (
-										<div className="px-3 py-1 rounded-full bg-sky-100 text-sky-700 text-xs font-semibold">
-											{isEditingSession1 ? 'Session 1 - Initial Assessment' : `Session ${sessionNumber} - Follow-up Assessment`}
-										</div>
-									)}
 								</div>
 								<div className="grid gap-4 sm:grid-cols-2">
 									<div>
@@ -3826,8 +3905,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 								</div>
 							</div>
 
-							{/* Show Follow-up form only if NOT editing Session 1 AND (it's a subsequent date OR versions exist) */}
-							{!isEditingSession1 && (hasPhysiotherapyVersions || isSubsequentDatePhysio || (sessionNumber && sessionNumber > 1)) ? (
+							{/* Show Follow-up form only if NOT editing Session 1 AND versions exist */}
+							{!isEditingSession1 && hasPhysiotherapyVersions ? (
 								<>
 									{/* Simplified Follow-Up Form for Subsequent Dates */}
 									<div className="mb-8">
@@ -6396,6 +6475,26 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										isViewingSavedVersion={viewingVersionIsPsychology}
 										isEditingLoadedVersion={isEditingLoadedPsychologyVersion}
 									/>
+
+									{/* Save Section with Completion of one session Checkbox */}
+									{!viewingVersionIsPsychology && editable && (
+										<div className="space-y-4 border-t border-slate-200 pt-6 mt-8">
+											<div className="flex items-center justify-between">
+												<label className="flex items-center gap-2 cursor-pointer">
+													<input
+														type="checkbox"
+														checked={psychologySessionCompleted}
+														onChange={e => setPsychologySessionCompleted(e.target.checked)}
+														disabled={savingPsychology || !reportPatientData}
+														className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
+													/>
+													<span className="text-sm font-medium text-slate-700">
+														Completion of one session
+													</span>
+												</label>
+											</div>
+										</div>
+									)}
 								</>
 							)}
 						</div>
@@ -6441,38 +6540,20 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 								) : (
 									<>
 										<i className="fas fa-save mr-2" aria-hidden="true" />
-										{activeReportTab === 'psychology' ? 'Save Report' : 'Save Changes'}
+										{activeReportTab === 'psychology' || activeReportTab === 'report' ? 'Save Report' : 'Save Changes'}
 									</>
 								)}
 							</button>
 						)}
 						{activeReportTab === 'report' && (reportPatientData || viewingVersionData) && (
-							<>
-								<button
-									type="button"
-									onClick={handleCrispReport}
-									className="inline-flex items-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none"
-								>
-									<i className="fas fa-file-alt mr-2" aria-hidden="true" />
-									Crisp Report
-								</button>
-								<button
-									type="button"
-									onClick={() => handleDownloadReportPDF()}
-									className="inline-flex items-center rounded-lg border border-sky-600 px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 focus-visible:outline-none"
-								>
-									<i className="fas fa-download mr-2" aria-hidden="true" />
-									Download PDF
-								</button>
-								<button
-									type="button"
-									onClick={() => handlePrintReport()}
-									className="inline-flex items-center rounded-lg border border-sky-600 px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 focus-visible:outline-none"
-								>
-									<i className="fas fa-print mr-2" aria-hidden="true" />
-									Print Report
-								</button>
-							</>
+							<button
+								type="button"
+								onClick={handleCrispReport}
+								className="inline-flex items-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none"
+							>
+								<i className="fas fa-file-alt mr-2" aria-hidden="true" />
+								Crisp Report
+							</button>
 						)}
 						{activeReportTab === 'strength-conditioning' && reportPatientData && (
 							<button
