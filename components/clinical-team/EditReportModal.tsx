@@ -2723,23 +2723,24 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 			await updateDoc(patientRef, reportData);
 			setReportPatientData((prev: any) => prev ? { ...prev, ...reportData } : null);
 			
-			const patientForProgress: PatientRecordFull = {
-				...reportPatientData,
-				id: patientDocIdToUse, // Add the document ID which is required by refreshPatientSessionProgress
-				totalSessionsRequired: totalSessionsValue !== undefined && totalSessionsValue !== null
-					? totalSessionsValue
-					: reportPatientData.totalSessionsRequired,
-				remainingSessions: sessionCompleted && reportData.remainingSessions !== undefined 
-					? reportData.remainingSessions as number
-					: reportPatientData.remainingSessions,
-			};
-			
-			await markAppointmentCompletedForReport(patientForProgress, consultationDate, isExtraTreatment);
-			
-			const sessionProgress = await refreshPatientSessionProgress(
-				patientForProgress,
-				totalSessionsValue ?? null
-			);
+			let sessionProgress: Partial<PatientRecordFull> | null | undefined;
+			if (sessionCompleted) {
+				const patientForProgress: PatientRecordFull = {
+					...reportPatientData,
+					id: patientDocIdToUse, // Add the document ID which is required by refreshPatientSessionProgress
+					totalSessionsRequired: totalSessionsValue !== undefined && totalSessionsValue !== null
+						? totalSessionsValue
+						: reportPatientData.totalSessionsRequired,
+					remainingSessions: reportData.remainingSessions !== undefined
+						? reportData.remainingSessions as number
+						: reportPatientData.remainingSessions,
+				};
+				await markAppointmentCompletedForReport(patientForProgress, consultationDate, isExtraTreatment);
+				sessionProgress = await refreshPatientSessionProgress(
+					patientForProgress,
+					totalSessionsValue ?? null
+				);
+			}
 
 			const finalRemainingSessions = sessionCompleted && reportData.remainingSessions !== undefined
 				? reportData.remainingSessions as number
@@ -4881,7 +4882,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 
 							{/* Save Section */}
 							<div className="space-y-4 border-t border-slate-200 pt-6 mt-8">
-								<div className="flex items-center justify-between">
+								<div>
 									<label className="flex items-center gap-2 cursor-pointer">
 										<input
 											type="checkbox"
@@ -4894,15 +4895,6 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											Completion of one session
 										</span>
 									</label>
-									<button 
-										type="button" 
-										onClick={handleSave} 
-										className="inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 focus-visible:outline-none disabled:opacity-50"
-										disabled={saving || !reportPatientData}
-									>
-										<i className="fas fa-save text-xs mr-2" aria-hidden="true" />
-										{saving ? 'Saving...' : 'Save Report'}
-									</button>
 								</div>
 								{reportPatientData?.patientType?.toUpperCase() === 'DYES' && sessionCompleted && (
 									<div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -5007,6 +4999,16 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 											))}
 										</select>
 									</div>
+
+									{/* Follow-up assessment disclaimer */}
+									{hasStrengthConditioningVersions && (
+										<div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
+											<p className="text-sm text-blue-800">
+												<i className="fas fa-info-circle mr-2" aria-hidden="true" />
+												This is a follow-up assessment. Please update the follow-up assessment, progress, and treatment details.
+											</p>
+										</div>
+									)}
 
 									{/* PDF Upload */}
 									<div className="mb-6">
@@ -5213,7 +5215,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 									</div>
 
 									{/* Skill Training - Hidden on subsequent dates */}
-									{!isSubsequentDateStrength && (
+									{!hasStrengthConditioningVersions && (
 									<div className="mb-8 border-t border-slate-200 pt-6">
 										<h2 className="mb-4 text-lg font-semibold text-slate-900 border-b-2 border-slate-300 pb-2">
 											1. Skill Training
@@ -5901,7 +5903,7 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 									</div>
 
 									{/* Injury Risk Screening - Hidden on subsequent dates */}
-									{!isSubsequentDateStrength && (
+									{!hasStrengthConditioningVersions && (
 									<div className="mb-8">
 										<h2 className="mb-4 text-lg font-semibold text-slate-900 border-b-2 border-slate-300 pb-2">
 											Injury Risk Screening
@@ -6474,6 +6476,8 @@ export default function EditReportModal({ isOpen, patientId, initialTab = 'repor
 										hasExistingVersions={hasPsychologyVersions}
 										isViewingSavedVersion={viewingVersionIsPsychology}
 										isEditingLoadedVersion={isEditingLoadedPsychologyVersion}
+										sessionCompleted={psychologySessionCompleted}
+										onSessionCompletedChange={setPsychologySessionCompleted}
 									/>
 
 									{/* Save Section with Completion of one session Checkbox */}

@@ -145,6 +145,8 @@ interface PsychologyReportProps {
 	hasExistingVersions?: boolean; // Whether there are existing report versions
 	isViewingSavedVersion?: boolean; // When true, follow-up visibility is based only on saved data content
 	isEditingLoadedVersion?: boolean; // When true, form was loaded from a version for editing - follow-up visibility from form data
+	sessionCompleted?: boolean;
+	onSessionCompletedChange?: (checked: boolean) => void;
 }
 
 // Helper functions for categorization
@@ -243,7 +245,7 @@ const calculateAge = (dob?: string): string => {
 	}
 };
 
-export default function PsychologyReport({ patientData, formData, onChange, editable = true, sessionIndex, totalSessions, hasExistingVersions = false, isViewingSavedVersion = false, isEditingLoadedVersion = false }: PsychologyReportProps) {
+export default function PsychologyReport({ patientData, formData, onChange, editable = true, sessionIndex, totalSessions, hasExistingVersions = false, isViewingSavedVersion = false, isEditingLoadedVersion = false, sessionCompleted = false, onSessionCompletedChange }: PsychologyReportProps) {
 	const [localData, setLocalData] = useState<PsychologyReportData>(formData);
 	const { user } = useAuth();
 
@@ -1155,6 +1157,31 @@ export default function PsychologyReport({ patientData, formData, onChange, edit
 			{!isFirstSession && (
 			<div className="pb-6">
 				<h2 className="mb-4 text-lg font-semibold text-slate-900">Follow-up Assessment Report</h2>
+
+				<div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
+					<p className="text-sm text-blue-800">
+						<i className="fas fa-info-circle mr-2" aria-hidden="true" />
+						This is a follow-up assessment. Please update the follow-up assessment, progress, and treatment details.
+					</p>
+				</div>
+
+				{/* Completion of one session - Follow-up Assessment */}
+				{onSessionCompletedChange && (
+					<div className="mb-6">
+						<label className="flex items-center gap-2 cursor-pointer">
+							<input
+								type="checkbox"
+								checked={sessionCompleted}
+								onChange={e => onSessionCompletedChange(e.target.checked)}
+								disabled={!editable}
+								className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
+							/>
+							<span className="text-sm font-medium text-slate-700">
+								Completion of one session
+							</span>
+						</label>
+					</div>
+				)}
 				
 				{/* Neurofeedback Headset Assessment */}
 				<div className="mb-6">
